@@ -4,33 +4,22 @@ import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
-    const { name, role, level, email } = await req.json();
+    const { name, role, level, email, username, password } = await req.json();
 
-    if (!name || !role) {
-      return NextResponse.json({ error: "Name and Role are required" }, { status: 400 });
+    if (!name || !role || !username || !password) {
+      return NextResponse.json({ error: "Name, Role, Username, and Password are required" }, { status: 400 });
     }
 
-    // Generate a random plain password
-    const plainPassword = Math.random().toString(36).substring(2, 10);
-    const hashedPassword = await bcrypt.hash(plainPassword, 10);
-
-    // Create the username sequentially (e.g., student-2049, teacher-12, or just their email if provided)
-    // For simplicity, generate a unique id-based username if email isn't provided, 
-    // but in a classic CBT, it's often user + random or sequential numbers
-    
-    // Simplification for the demo:
-    const baseUsername = email ? email.split("@")[0].toLowerCase() : `${role.toLowerCase()}-${Math.floor(Math.random() * 10000)}`;
-    let finalUsername = baseUsername;
-    
-    let count = 0;
-    while (await prisma.user.findUnique({ where: { username: finalUsername } })) {
-      count++;
-      finalUsername = `${baseUsername}${count}`;
+    const existingUser = await prisma.user.findUnique({ where: { username } });
+    if (existingUser) {
+      return NextResponse.json({ error: "Username already exists" }, { status: 400 });
     }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await prisma.user.create({
       data: {
-        username: finalUsername,
+        username: username,
         password: hashedPassword,
         name: name,
         role: role,
@@ -40,7 +29,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ 
        message: "User registered successfully", 
-       user: { ...newUser, plainPassword } // return plain password once so admin can see it
+       user: { ...newUser, plainPassword: password } // return plain password once so admin can see it
     }, { status: 201 });
 
   } catch (err: any) {

@@ -8,9 +8,12 @@ export default function AdminDashboard() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [level, setLevel] = useState("SD");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successData, setSuccessData] = useState<any>(null);
+  const [showManual, setShowManual] = useState(false);
 
   const [users, setUsers] = useState<any[]>([]);
   const [fetchingUsers, setFetchingUsers] = useState(false);
@@ -62,13 +65,15 @@ export default function AdminDashboard() {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, role: newUserRole, email, level: newUserRole === "STUDENT" ? level : undefined })
+        body: JSON.stringify({ name, role: newUserRole, email, level: newUserRole === "STUDENT" ? level : undefined, username, password })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to register");
       setSuccessData(data.user);
       setName("");
       setEmail("");
+      setUsername("");
+      setPassword("");
       fetchUsers(); // refresh table
     } catch (err: any) {
       setError(err.message);
@@ -100,18 +105,68 @@ export default function AdminDashboard() {
     setSettingsLoading(false);
   };
 
-  const exportToCSV = (data: any[], filename: string) => {
+  const exportStatsToExcel = async () => {
+    const ExcelJS = (await import('exceljs')).default;
+    const { saveAs } = await import('file-saver');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Stats');
+    worksheet.columns = [{ header: 'Metric', key: 'm', width: 20 }, { header: 'Value', key: 'v', width: 15 }];
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF004253' } };
+    worksheet.addRow({ m: 'Total Students', v: stats.studentCount });
+    worksheet.addRow({ m: 'Teachers', v: stats.teacherCount });
+    worksheet.addRow({ m: 'Active Exams', v: stats.examCount });
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `dashboard_stats.xlsx`);
+  };
+
+  const exportToExcel = async (data: any[], filename: string) => {
     if (data.length === 0) return;
-    const headers = Object.keys(data[0]).join(",");
-    const rows = data.map(obj => Object.values(obj).map(v => `"${v}"`).join(",")).join("\n");
-    const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + rows;
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${filename}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const ExcelJS = (await import('exceljs')).default;
+    const { saveAs } = await import('file-saver');
+    
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Users');
+    
+    worksheet.columns = [
+      { header: 'Username', key: 'username', width: 20 },
+      { header: 'Name', key: 'name', width: 30 },
+      { header: 'Role', key: 'role', width: 15 },
+      { header: 'Details', key: 'details', width: 25 }
+    ];
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF004253' } };
+    
+    data.forEach((u, i) => {
+      const row = worksheet.addRow({ username: u.username, name: u.name, role: u.role, details: u.level || u.email || "-" });
+      if (i % 2 === 0) row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F7F9' } };
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `${filename}.xlsx`);
+  };
+
+  const exportToPDF = async (data: any[], filename: string) => {
+    if (data.length === 0) return;
+    const jsPDF = (await import('jspdf')).default;
+    const autoTable = (await import('jspdf-autotable')).default;
+    
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.setTextColor(0, 66, 83);
+    doc.text('Tabgha CBT - All Users Directory', 14, 22);
+    
+    const tableData = data.map(u => [u.username, u.name, u.role, u.level || u.email || "-"]);
+    
+    autoTable(doc, {
+      head: [['Username', 'Name', 'Role', 'Details']],
+      body: tableData,
+      startY: 30,
+      theme: 'striped',
+      headStyles: { fillColor: [0, 66, 83], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [240, 247, 249] }
+    });
+    doc.save(`${filename}.pdf`);
   };
 
   const handleLogout = () => {
@@ -138,6 +193,10 @@ export default function AdminDashboard() {
           <button onClick={() => setActiveTab("SETTINGS")} className={`flex items-center gap-3 px-6 py-3 font-semibold transition-colors ${activeTab === "SETTINGS" ? "text-primary dark:text-primary-fixed bg-primary-container/20 border-r-4 border-primary" : "text-on-surface-variant dark:text-slate-400 hover:bg-surface-container-high"}`}>
             <span className="material-symbols-outlined">settings</span> System Settings
           </button>
+          <div className="my-2 border-b border-outline-variant/20 mx-6"></div>
+          <button onClick={() => setShowManual(true)} className="flex items-center gap-3 px-6 py-3 font-semibold transition-colors text-on-surface-variant dark:text-slate-400 hover:bg-surface-container-high">
+            <span className="material-symbols-outlined text-tertiary">menu_book</span> User Guide (Manual)
+          </button>
         </div>
 
         <div className="px-2 mt-auto">
@@ -163,8 +222,8 @@ export default function AdminDashboard() {
           {activeTab === "DASHBOARD" && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex justify-end mb-4">
-                <button onClick={() => exportToCSV([stats], "dashboard_stats")} className="bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm shadow flex items-center gap-2 hover:bg-primary/90">
-                  <span className="material-symbols-outlined text-sm">download</span> Export Stats
+                <button onClick={exportStatsToExcel} className="bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm shadow flex items-center gap-2 hover:bg-primary/90">
+                  <span className="material-symbols-outlined text-sm">table</span> Export Excel Stats
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -243,6 +302,14 @@ export default function AdminDashboard() {
                              <input type="email" className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
                            </div>
                         )}
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Username</label>
+                          <input type="text" className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Password</label>
+                          <input type="text" className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                        </div>
                       </div>
                       <div className="pt-2 flex justify-end">
                         <button disabled={loading} type="submit" className="bg-primary text-on-primary font-bold px-6 py-3 rounded-xl shadow hover:scale-[1.02] active:scale-95 transition-all text-sm disabled:opacity-50">
@@ -263,8 +330,11 @@ export default function AdminDashboard() {
                       <button onClick={fetchUsers} className="p-2 bg-surface text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-colors">
                         <span className="material-symbols-outlined text-sm">refresh</span>
                       </button>
-                      <button onClick={() => exportToCSV(users, "tabgha_users")} className="px-4 py-2 bg-secondary text-on-secondary rounded-lg font-bold text-xs shadow flex items-center gap-2 hover:bg-secondary/90 transition-colors">
-                        <span className="material-symbols-outlined text-sm">download</span> Export CSV
+                      <button onClick={() => exportToExcel(users, "tabgha_users")} className="px-4 py-2 bg-[#178550] text-[#ffffff] rounded-lg font-bold text-xs shadow flex items-center gap-2 hover:bg-[#11653d] transition-colors">
+                        <span className="material-symbols-outlined text-sm">table_view</span> Excel
+                      </button>
+                      <button onClick={() => exportToPDF(users, "tabgha_users")} className="px-4 py-2 bg-[#DD2B2B] text-white rounded-lg font-bold text-xs shadow flex items-center gap-2 hover:bg-[#a52121] transition-colors">
+                        <span className="material-symbols-outlined text-sm">picture_as_pdf</span> PDF
                       </button>
                     </div>
                   </div>
@@ -276,7 +346,7 @@ export default function AdminDashboard() {
                           <th className="px-6 py-4">Username</th>
                           <th className="px-6 py-4">Name</th>
                           <th className="px-6 py-4">Role</th>
-                          <th className="px-6 py-4">Context</th>
+                          <th className="px-6 py-4">Context / Details</th>
                           <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -363,7 +433,6 @@ export default function AdminDashboard() {
                 });
                 const data = await res.json();
                 if (res.ok) {
-                  if (data.newPassword) alert(`Password was randomly reset! NEW PASSWORD: ${data.newPassword}`);
                   setEditingUser(null);
                   fetchUsers();
                 } else alert(data.error);
@@ -377,15 +446,88 @@ export default function AdminDashboard() {
                 <label className="text-xs font-bold text-on-surface-variant">Email / Level Context</label>
                 <input value={editingUser.email || editingUser.level || ""} onChange={e => setEditingUser({...editingUser, email: e.target.value, level: e.target.value})} className="w-full bg-surface-container-low py-2 px-3 rounded-lg outline-none focus:ring-2 focus:ring-primary" />
               </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-on-surface-variant">Username</label>
+                <input required value={editingUser.username} onChange={e => setEditingUser({...editingUser, username: e.target.value})} className="w-full bg-surface-container-low py-2 px-3 rounded-lg outline-none focus:ring-2 focus:ring-primary" />
+              </div>
               
               <div className="pt-4 border-t border-outline-variant/20 flex flex-col gap-3">
-                <label className="flex items-center gap-2 text-sm text-error font-bold cursor-pointer">
-                  <input type="checkbox" onChange={e => setEditingUser({...editingUser, resetPassword: e.target.checked})} className="rounded text-error focus:ring-error" />
-                  Regenerate Random Password
-                </label>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-on-surface-variant">New Password (leave blank to keep current)</label>
+                  <input type="text" onChange={e => setEditingUser({...editingUser, newPassword: e.target.value})} className="w-full bg-surface-container-low py-2 px-3 rounded-lg outline-none focus:ring-2 focus:ring-primary" placeholder="Enter new password..." />
+                </div>
                 <button type="submit" className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl mt-2">Save Changes</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {showManual && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-surface-container bg-surface flex flex-col rounded-3xl w-full max-w-4xl h-[85vh] shadow-2xl overflow-hidden relative border border-outline-variant/20 animate-in zoom-in-95 duration-200">
+            <div className="bg-primary px-8 py-6 text-on-primary flex justify-between items-center shrink-0 shadow-sm relative z-10">
+               <div>
+                 <h3 className="font-headline font-black text-2xl flex items-center gap-3"><span className="material-symbols-outlined text-3xl">menu_book</span> Admin Manual Book</h3>
+                 <p className="opacity-90 mt-1 font-body text-sm font-medium">Panduan operasional operasional & pemahaman fungsi portal Admin.</p>
+               </div>
+               <button onClick={() => setShowManual(false)} className="p-2 hover:bg-on-primary/20 rounded-full transition-colors flex items-center justify-center"><span className="material-symbols-outlined text-3xl">close</span></button>
+            </div>
+            
+            <div className="p-8 overflow-y-auto space-y-10 flex-1 text-on-surface bg-gray-50/50 dark:bg-slate-900/50 relative">
+              <div className="absolute top-0 right-0 p-12 opacity-[0.03] pointer-events-none">
+                <span className="material-symbols-outlined text-[250px]">verified_user</span>
+              </div>
+              
+              <section className="space-y-4 relative z-10 bg-surface p-6 rounded-2xl shadow-sm border border-outline-variant/15">
+                <h4 className="text-xl font-bold font-headline text-primary border-b border-outline-variant/30 pb-3 flex items-center gap-3">
+                  <span className="material-symbols-outlined bg-primary/10 p-2 rounded-lg">dashboard</span> 1. Overview Dashboard
+                </h4>
+                <ul className="list-disc pl-6 space-y-2 text-sm text-on-surface-variant leading-relaxed">
+                  <li><strong className="text-on-surface font-semibold text-[15px]">Fungsi:</strong> Melihat statistik keseluruhan Tabgha CBT system secara real-time.</li>
+                  <li><strong className="text-on-surface font-semibold text-[15px]">Total Students:</strong> Jumlah total rekapitulasi siswa yang terdaftar aktif dalam pangkalan data.</li>
+                  <li><strong className="text-on-surface font-semibold text-[15px]">Teachers:</strong> Jumlah murni total guru pengawas atau staf tutor.</li>
+                  <li><strong className="text-on-surface font-semibold text-[15px]">Active Exams:</strong> Menampilkan rentetan jumlah ujian yang tengah berlangsung.</li>
+                  <li><strong className="text-on-surface font-semibold text-[15px]">Export Excel Stats:</strong> Ekstraksi data ketiga status sentral tersebut ke dalam berkas <span className="text-[#178550] font-bold">Excel (.xlsx)</span>.</li>
+                </ul>
+              </section>
+
+              <section className="space-y-4 relative z-10 bg-surface p-6 rounded-2xl shadow-sm border border-outline-variant/15">
+                 <h4 className="text-xl font-bold font-headline text-primary border-b border-outline-variant/30 pb-3 flex items-center gap-3">
+                   <span className="material-symbols-outlined bg-primary/10 p-2 rounded-lg">group_add</span> 2. User Management
+                 </h4>
+                 <ul className="list-none space-y-4 text-sm text-on-surface-variant">
+                   <li className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20 hover:border-primary/30 transition-colors">
+                     <strong className="text-primary text-[15px] flex items-center gap-2 mb-2"><span className="material-symbols-outlined text-sm">person_add</span> Enroll New Member</strong>
+                     Form pendaftaran murni. Menentukan akses hak paten (*Role*). Anda harus menyisipkan *Username* & *Password* secara literatur eksplisit. Kredensial mandiri inilah yang menuntun aktor menembus portal ujian.
+                   </li>
+                   <li className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20 hover:border-primary/30 transition-colors">
+                     <strong className="text-[#178550] text-[15px] flex items-center gap-2 mb-2"><span className="material-symbols-outlined text-sm">table_view</span> Excel & PDF Data Export</strong>
+                     Mentranslasikan katalog daftar pengisi pangkalan data ke manifest dokumen formal visual (<span className="text-[#178550] font-bold">.xlsx</span> / <span className="text-[#DD2B2B] font-bold">.pdf</span>) dipoles mewah sesuai corak standar institusi. 
+                   </li>
+                   <li className="bg-error/5 border border-error/20 p-4 rounded-xl hover:border-error/40 transition-colors">
+                     <strong className="text-error text-[15px] flex items-center gap-2 mb-2"><span className="material-symbols-outlined text-sm">lock_reset</span> Edit & Reset Password (Ikon Pensil Biru)</strong>
+                     Sistem penanganan keadaan darurat administratif; dapat mengkorek detail *username*, menimpa kata sandi amnesia menjadi sandi utuh nan baru tiada jejak sisa. (Super Admin terlindung eksklusif dari penghapusan masif).
+                   </li>
+                 </ul>
+              </section>
+
+              <section className="space-y-4 relative z-10 bg-surface p-6 rounded-2xl shadow-sm border border-outline-variant/15">
+                 <h4 className="text-xl font-bold font-headline text-primary border-b border-outline-variant/30 pb-3 flex items-center gap-3">
+                   <span className="material-symbols-outlined bg-primary/10 p-2 rounded-lg">settings</span> 3. System Settings
+                 </h4>
+                 <ul className="list-disc pl-6 space-y-2 text-sm text-on-surface-variant">
+                   <li><strong className="text-on-surface text-[15px]">Institution Name:</strong> Mendeklarasikan identitas nama sekolah resmi yang akan digunakan di berbagai template visual antarmuka sistem.</li>
+                   <li><strong className="text-on-surface text-[15px]">Active Academic Term:</strong> Menetapkan masa kuartal kelas aktif saat ini (UTS, UAS, dll). Ini krusial bagi aplikasi dalam memilah dan menayangkan ketersediaan silabus ujian.</li>
+                 </ul>
+              </section>
+
+            </div>
+            
+            <div className="bg-surface-container-low border-t border-outline-variant/15 px-8 py-5 flex justify-end shrink-0 relative z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+               <button onClick={() => setShowManual(false)} className="bg-primary text-on-primary font-bold px-10 py-3 rounded-xl hover:scale-105 active:scale-95 transition-transform flex items-center gap-2">
+                 <span className="material-symbols-outlined">thumb_up</span> Saya Mengerti
+               </button>
+            </div>
           </div>
         </div>
       )}
