@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  role      Role
+  level     Level?
+  name      String
+  email     String?
+  attempts  ExamAttempt[]
+}
+
+model SystemSetting {
+  id          String   @id @default("global")
+  schoolName  String   @default("Tabgha Academic")
+  activeTerm  Term     @default(UTS_1)
+  updatedAt   DateTime @updatedAt
+}
+
+model Subject {
+  id    String @id @default(uuid())
+  name  String
+  level Level
+}
+
+model Exam {
+  id          String   @id @default(uuid())
+  title       String
+  term        Term
+  level       Level
+  subjectId   String
+  durationMin Int
+  status      String
+}
+
+model ExamAttempt {
+  id         String   @id @default(uuid())
+  studentId  String
+  examId     String
+  startTime  DateTime
+  endTime    DateTime?
+  score      Float?
+  isCheated  Boolean  @default(false)
+  cheatLogs  CheatLog[]
+  student    User     @relation(fields: [studentId], references: [id])
+}
+
+model CheatLog {
+  id          String   @id @default(uuid())
+  attemptId   String
+  eventType   String
+  timestamp   DateTime @default(now())
+  attempt     ExamAttempt @relation(fields: [attemptId], references: [id])
+}
+
+enum Role { 
+  ADMIN 
+  TEACHER 
+  STUDENT 
+}
+
+enum Level { 
+  SD 
+  SMP 
+  SMA 
+  SMK 
+}
+
+enum Term { 
+  UTS_1 
+  SEM_1 
+  UTS_2 
+  SEM_2 
+}
