@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
-    const { name, role, level, email, username, password } = await req.json();
+    const { name, role, level, email, username, password, classRoomId } = await req.json();
 
     if (!name || !role || !username || !password) {
       return NextResponse.json({ error: "Name, Role, Username, and Password are required" }, { status: 400 });
@@ -24,6 +24,7 @@ export async function POST(req: Request) {
         name: name,
         role: role,
         level: level || null,
+        classRoomId: classRoomId || null,
       },
     });
 
@@ -48,6 +49,9 @@ export async function GET(req: Request) {
         role: true,
         level: true,
         email: true,
+        classRoom: {
+          select: { id: true, level: true, grade: true, name: true }
+        }
       },
       orderBy: { role: 'asc' }
     });

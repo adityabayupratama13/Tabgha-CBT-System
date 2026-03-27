@@ -8,27 +8,62 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  password  String
-  role      Role
-  level     Level?
-  name      String
-  email     String?
-  attempts  ExamAttempt[]
+  id          String   @id @default(uuid())
+  username    String   @unique
+  password    String
+  role        Role
+  level       Level?
+  name        String
+  email       String?
+  classRoomId String?
+  classRoom   ClassRoom? @relation(fields: [classRoomId], references: [id])
+  attempts    ExamAttempt[]
+  createdSubjects   Subject[]  @relation("SubjectCreator")
+  accessibleSubjects Subject[] @relation("SubjectSharedWith")
+  createdExams      Exam[]     @relation("ExamCreator")
+  accessibleExams   Exam[]     @relation("ExamSharedWith")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 }
 
 model SystemSetting {
   id          String   @id @default("global")
   schoolName  String   @default("Tabgha Academic")
   activeTerm  Term     @default(UTS_1)
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model ClassRoom {
+  id          String   @id @default(uuid())
+  level       Level
+  grade       Int
+  name        String
+  createdAt   DateTime @default(now())
+  students    User[]
+  exams       Exam[]   @relation("ExamClassRooms")
 }
 
 model Subject {
-  id    String @id @default(uuid())
-  name  String
-  level Level
+  id          String     @id @default(uuid())
+  name        String
+  level       Level
+  createdById String?
+  createdBy   User?      @relation("SubjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  sharedWith  User[]     @relation("SubjectSharedWith")
+  questions   Question[]
+  exams       Exam[]
+}
+
+model Question {
+  id        String   @id @default(uuid())
+  text      String   @db.Text
+  type      QuestionType @default(MULTIPLE_CHOICE)
+  mediaUrl  String?  @db.Text
+  mediaType String?  // e.g., 'image' or 'video'
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  options   Json?    // Array of { id: string, text: string, isCorrect: boolean, mediaUrl?: string }
+  createdAt DateTime @default(now())
 }
 
 model Exam {
@@ -36,9 +71,15 @@ model Exam {
   title       String
   term        Term
   level       Level
+  classRooms  ClassRoom[] @relation("ExamClassRooms")
   subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id])
   durationMin Int
-  status      String
+  status      String   @default("DRAFT")
+  createdById String?
+  createdBy   User?    @relation("ExamCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  sharedWith  User[]   @relation("ExamSharedWith")
+  createdAt   DateTime @default(now())
 }
 
 model ExamAttempt {
@@ -79,4 +120,9 @@ enum Term {
   SEM_1 
   UTS_2 
   SEM_2 
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  ESSAY
 }

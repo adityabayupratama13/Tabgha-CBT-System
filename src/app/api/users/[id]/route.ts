@@ -5,9 +5,9 @@ import bcrypt from "bcryptjs";
 export async function PUT(req: Request, context: { params: Promise<{ id: string }> | { id: string } }) {
   try {
     const resolvedParams = await context.params;
-    const { name, email, level, username, newPassword } = await req.json();
+    const { name, email, level, username, newPassword, classRoomId } = await req.json();
     
-    let updateData: any = { name, email, level, username };
+    let updateData: any = { name, email, level, username, classRoomId: classRoomId || null };
 
     if (newPassword && newPassword.trim().length > 0) {
       updateData.password = await bcrypt.hash(newPassword, 10);
