@@ -5,7 +5,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 export default function TeacherDashboard() {
-  const [activeTab, setActiveTab] = useState<"DASHBOARD" | "QUESTION_BANK" | "EXAMS">("DASHBOARD");
+  const [activeTab, setActiveTab] = useState<"DASHBOARD" | "QUESTION_BANK" | "EXAMS" | "REPORTS">("DASHBOARD");
+  const [reports, setReports] = useState<any[]>([]);
+
+  // Global Academic Filters
+  const [filterYear, setFilterYear] = useState<string>("2025/2026");
+  const [filterTerm, setFilterTerm] = useState<string>("ALL");
+  const [filterMonth, setFilterMonth] = useState<string>("ALL");
 
   const [subjects, setSubjects] = useState<any[]>([]);
   const [activeSubject, setActiveSubject] = useState<any>(null);
@@ -19,6 +25,10 @@ export default function TeacherDashboard() {
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [showExamModal, setShowExamModal] = useState(false);
+
+  const [dialog, setDialog] = useState<{isOpen: boolean, title: string, message: string, type: "confirm"|"alert"|"danger", onConfirm?: () => void}>({isOpen: false, title: "", message: "", type: "alert"});
+  const showConfirm = (title: string, message: string, onConfirm: () => void, type: "confirm"|"danger" = "confirm") => setDialog({isOpen: true, title, message, type, onConfirm});
+  const showAlert = (title: string, message: string) => setDialog({isOpen: true, title, message, type: "alert"});
 
   // New Subject State
   const [newSub, setNewSub] = useState({ name: "", level: "SMA", sharedWithIds: [] as string[] });
@@ -62,7 +72,7 @@ export default function TeacherDashboard() {
 
   const fetchClassRooms = useCallback(async () => {
     try {
-      const res = await fetch("/api/classRooms");
+      const res = await fetch("/api/classrooms");
       const data = await res.json();
       if (res.ok) setClassRooms(data.classrooms || []);
     } catch (e) {}
@@ -94,12 +104,21 @@ export default function TeacherDashboard() {
     } catch (e) {}
   }, []);
 
+  const fetchReports = useCallback(async () => {
+    try {
+      const res = await fetch("/api/teacher/results");
+      const data = await res.json();
+      if (res.ok) setReports(data.results || []);
+    } catch (e) {}
+  }, []);
+
   useEffect(() => {
     fetchSubjects();
     fetchExams();
     fetchTeachers();
     fetchClassRooms();
-  }, [fetchSubjects, fetchExams, fetchTeachers, fetchClassRooms]);
+    fetchReports();
+  }, [fetchSubjects, fetchExams, fetchTeachers, fetchClassRooms, fetchReports]);
 
   useEffect(() => {
     if (activeSubject) fetchQuestions(activeSubject.id);
@@ -136,25 +155,27 @@ export default function TeacherDashboard() {
   };
 
   const handleDeleteSubject = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to completely delete "${name}" and all its questions?`)) return;
-    await fetch(`/api/subjects?id=${id}`, { method: "DELETE" });
-    if (activeSubject?.id === id) setActiveSubject(null);
-    fetchSubjects();
+    showConfirm("Delete Subject", `Are you sure you want to completely delete "${name}" and all its questions?`, async () => {
+      await fetch(`/api/subjects?id=${id}`, { method: "DELETE" });
+      if (activeSubject?.id === id) setActiveSubject(null);
+      fetchSubjects();
+    }, "danger");
   };
 
   const handleDuplicateSubject = async (id: string, name: string, level: string) => {
-    if (!confirm(`Duplicate "${name}"?`)) return;
-    await fetch("/api/subjects", { 
-      method: "POST", 
-      headers: { "Content-Type": "application/json" }, 
-      body: JSON.stringify({ name: `${name} (Copy)`, level, sourceId: id }) 
+    showConfirm("Duplicate Subject", `Are you sure you want to duplicate "${name}"?`, async () => {
+      await fetch("/api/subjects", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ name: `${name} (Copy)`, level, sourceId: id }) 
+      });
+      fetchSubjects();
     });
-    fetchSubjects();
   };
 
   const handleCreateExam = async (e: any) => {
     e.preventDefault();
-    await fetch("/api/exams", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newEx) });
+    await fetch("/api/exams", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({...newEx, status: "PUBLISHED"}) });
     setShowExamModal(false);
     setNewEx({ title: "", term: "UTS_1", level: "SMA", subjectId: "", durationMin: 60, sharedWithIds: [], classRoomIds: [] });
     fetchExams();
@@ -180,7 +201,7 @@ export default function TeacherDashboard() {
         setNewQ({ ...newQ, mediaUrl: url });
       }
     } catch (err) {
-      alert("File upload failed. Please try again.");
+      showAlert("Upload Error", "File upload failed. Please try again.");
     }
     setUploadingMedia(false);
     e.target.value = ""; // reset
@@ -205,10 +226,11 @@ export default function TeacherDashboard() {
   };
 
   const handleDeleteQuestion = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this question?")) return;
-    await fetch(`/api/questions?id=${id}`, { method: "DELETE" });
-    if (activeSubject) fetchQuestions(activeSubject.id);
-    fetchSubjects();
+    showConfirm("Delete Question", "Are you sure you want to delete this question?", async () => {
+      await fetch(`/api/questions?id=${id}`, { method: "DELETE" });
+      if (activeSubject) fetchQuestions(activeSubject.id);
+      fetchSubjects();
+    }, "danger");
   };
 
   const handleSaveQuestion = async (e: any) => {
@@ -297,6 +319,84 @@ export default function TeacherDashboard() {
     </div>
   );
 
+  // Score Edit Modal State
+  const [scoreModal, setScoreModal] = useState<{isOpen: boolean, attempt: any, score: string}>({isOpen: false, attempt: null, score: ""});
+
+  // Edit & Delete Attempt Logic
+  const openEditAttempt = (attempt: any) => {
+    setScoreModal({ isOpen: true, attempt, score: attempt.score?.toString() || "" });
+  };
+
+  const handleSaveScore = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scoreModal.attempt) return;
+    
+    const scoreNum = parseFloat(scoreModal.score);
+    if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+      showAlert("Invalid Score", "Score must be a valid number between 0 and 100.");
+      return;
+    }
+    
+    setScoreModal({ ...scoreModal, isOpen: false });
+    
+    fetch("/api/teacher/attempts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: scoreModal.attempt.id, score: scoreNum })
+    }).then(res => {
+      if (res.ok) {
+        fetchReports();
+        showAlert("Success", "Score updated successfully.");
+      } else showAlert("Error", "Failed to update score.");
+    });
+  };
+
+  const handleDeleteAttempt = (attempt: any) => {
+    showConfirm("Delete Attempt", `Are you sure you want to delete the attempt for ${attempt.student?.name}?`, async () => {
+      const res = await fetch(`/api/teacher/attempts?id=${attempt.id}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchReports();
+      } else {
+        showAlert("Error", "Failed to delete attempt.");
+      }
+    }, "danger");
+  };
+
+  // Filtering Logic
+  const filteredExams = exams.filter(ex => filterTerm === "ALL" || ex.term.startsWith(filterTerm));
+  
+  const filteredReports = reports.filter(r => {
+    if (filterTerm !== "ALL" && !r.term.startsWith(filterTerm)) return false;
+    
+    // Check Month based on the first recorded attempt (the proxy for when exam was taken)
+    if (filterMonth !== "ALL" && r.attempts && r.attempts.length > 0) {
+      const firstAttemptMonth = new Date(r.attempts[0].endTime).getMonth().toString();
+      if (firstAttemptMonth !== filterMonth) return false;
+    }
+    return true;
+  });
+
+  // Expandable Accordion State for Reports
+  const [expandedReportIds, setExpandedReportIds] = useState<string[]>([]);
+  const toggleReportExpand = (id: string) => {
+    setExpandedReportIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleExportCSV = (report: any) => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Student Name,Classroom,Timestamp,Score\n";
+    report.attempts.forEach((att: any) => {
+      csvContent += `"${att.student?.name}","${att.student?.classRoom?.name || "N/A"}","${new Date(att.endTime).toLocaleString()}","${att.score ?? "N/A"}"\n`;
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${report.title.replace(/\s+/g, '_')}_Results.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0f14] selection:bg-primary/30 text-slate-800 dark:text-slate-200">
       <div className="fixed top-[-20%] left-[-10%] w-[60%] h-[60%] bg-gradient-to-br from-primary/20 to-secondary/10 blur-[120px] rounded-full pointer-events-none z-0"></div>
@@ -309,7 +409,7 @@ export default function TeacherDashboard() {
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">CBT Tabgha</p>
           </div>
           <nav className="flex-1 px-4 space-y-2">
-            {[ { id: "DASHBOARD", icon: "dashboard", label: "Overview" }, { id: "QUESTION_BANK", icon: "quiz", label: "Question Bank" }, { id: "EXAMS", icon: "history_edu", label: "Exam Schedule" }].map((tab: any) => (
+            {[ { id: "DASHBOARD", icon: "dashboard", label: "Overview" }, { id: "QUESTION_BANK", icon: "quiz", label: "Question Bank" }, { id: "EXAMS", icon: "history_edu", label: "Exam Schedule" }, { id: "REPORTS", icon: "analytics", label: "Reports & Analytics" }].map((tab: any) => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-bold transition-all duration-300 ${activeTab === tab.id ? "bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg shadow-primary/30 translate-x-2" : "text-slate-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-white"}`}>
                 <span className="material-symbols-outlined text-[22px]">{tab.icon}</span> {tab.label}
               </button>
@@ -323,26 +423,52 @@ export default function TeacherDashboard() {
         </aside>
 
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
-          <header className="px-12 py-10 flex justify-between items-end shrink-0 border-b border-slate-200/30 dark:border-slate-800/30 bg-white/30 dark:bg-black/20 backdrop-blur-md">
-            <div>
-              <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                {activeTab === "DASHBOARD" ? `Welcome, ${currentUserName.split(" ")[0]}.` : activeTab === "QUESTION_BANK" ? "Knowledge Vault" : "Exam Schedule"}
-              </h1>
-              <p className="text-slate-500 font-medium mt-3 text-lg">
-                {activeTab === "DASHBOARD" ? "Empowering minds through structured evaluations." : activeTab === "QUESTION_BANK" ? "Build and curate questions, essays, and media." : "Deploy and monitor active term examinations."}
-              </p>
-            </div>
-            <div className="flex gap-4">
-              {activeTab === "QUESTION_BANK" && (
-                <button onClick={() => setShowSubjectModal(true)} className="px-6 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-2xl font-bold flex items-center gap-2 hover:scale-105 transition-transform shadow-sm">
-                  <span className="material-symbols-outlined">library_add</span> New Subject
-                </button>
-              )}
-              {activeTab === "EXAMS" && (
-                <button onClick={() => setShowExamModal(true)} className="px-6 py-3 bg-gradient-to-r from-secondary to-tertiary text-white rounded-2xl font-bold flex items-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-secondary/20">
-                  <span className="material-symbols-outlined">edit_calendar</span> Schedule Exam
-                </button>
-              )}
+          <header className="px-12 pt-10 pb-6 flex flex-col gap-6 shrink-0 border-b border-slate-200/30 dark:border-slate-800/30 bg-white/30 dark:bg-black/20 backdrop-blur-md z-20 sticky top-0">
+            <div className="flex justify-between items-end">
+              <div>
+                <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                  {activeTab === "DASHBOARD" ? `Welcome, ${currentUserName.split(" ")[0]}.` : activeTab === "QUESTION_BANK" ? "Knowledge Vault" : activeTab === "REPORTS" ? "Reports & Analytics" : "Exam Schedule"}
+                </h1>
+                <p className="text-slate-500 font-medium mt-3 text-lg">
+                  {activeTab === "DASHBOARD" ? "Empowering minds through structured evaluations." : activeTab === "QUESTION_BANK" ? "Build and curate questions, essays, and media." : activeTab === "REPORTS" ? "Analyze student performance." : "Deploy and monitor active term examinations."}
+                </p>
+              </div>
+              <div className="flex gap-4 items-center">
+                {/* Global Filters */}
+                {activeTab !== "DASHBOARD" && activeTab !== "QUESTION_BANK" && (
+                  <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-1.5 rounded-2xl shadow-sm mr-4">
+                    <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="bg-transparent font-bold text-sm px-3 py-2 outline-none cursor-pointer">
+                      <option value="2024/2025">Year 2024/2025</option>
+                      <option value="2025/2026">Year 2025/2026</option>
+                    </select>
+                    <div className="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
+                    <select value={filterTerm} onChange={e => setFilterTerm(e.target.value)} className="bg-transparent font-bold text-sm px-3 py-2 outline-none cursor-pointer">
+                      <option value="ALL">All Terms</option>
+                      <option value="UTS">UTS Only</option>
+                      <option value="SEM">Semester Only</option>
+                    </select>
+                    <div className="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
+                    <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="bg-transparent font-bold text-sm px-3 py-2 outline-none cursor-pointer">
+                      <option value="ALL">All Months</option>
+                      <option value="0">January</option><option value="1">February</option><option value="2">March</option>
+                      <option value="3">April</option><option value="4">May</option><option value="5">June</option>
+                      <option value="6">July</option><option value="7">August</option><option value="8">September</option>
+                      <option value="9">October</option><option value="10">November</option><option value="11">December</option>
+                    </select>
+                  </div>
+                )}
+                
+                {activeTab === "QUESTION_BANK" && (
+                  <button onClick={() => setShowSubjectModal(true)} className="px-6 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-2xl font-bold flex items-center gap-2 hover:scale-105 transition-transform shadow-sm">
+                    <span className="material-symbols-outlined">library_add</span> New Subject
+                  </button>
+                )}
+                {activeTab === "EXAMS" && (
+                  <button onClick={() => setShowExamModal(true)} className="px-6 py-3 bg-gradient-to-r from-secondary to-tertiary text-white rounded-2xl font-bold flex items-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-secondary/20">
+                    <span className="material-symbols-outlined">edit_calendar</span> Schedule Exam
+                  </button>
+                )}
+              </div>
             </div>
           </header>
 
@@ -447,7 +573,7 @@ export default function TeacherDashboard() {
             {activeTab === "EXAMS" && (
               <div className="animate-in fade-in duration-700">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {exams.length === 0 ? <p className="col-span-full p-20 text-center border border-dashed rounded-3xl">No exams scheduled.</p> : exams.map(ex => (
+                  {filteredExams.length === 0 ? <p className="col-span-full p-20 text-center border border-dashed rounded-3xl">No exams scheduled.</p> : filteredExams.map(ex => (
                     <div key={ex.id} className="bg-white/80 dark:bg-slate-800/80 p-6 rounded-3xl shadow-xl hover:-translate-y-2 transition-transform">
                       <span className="text-[10px] font-black uppercase bg-slate-900 text-white px-3 py-1.5 rounded-md mb-4 inline-block">{ex.term} • {ex.level}</span>
                       <h3 className="font-black text-2xl mb-1">{ex.title}</h3>
@@ -466,6 +592,112 @@ export default function TeacherDashboard() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {activeTab === "REPORTS" && (
+              <div className="animate-in fade-in duration-700 space-y-6">
+                {filteredReports.length === 0 ? <p className="p-20 text-center border border-dashed rounded-3xl font-bold text-slate-400">No reports available matching filters.</p> : filteredReports.map(r => {
+                  const isExpanded = expandedReportIds.includes(r.id);
+                  return (
+                  <div key={r.id} className="bg-white/80 dark:bg-slate-800/80 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700 transition-all overflow-hidden group">
+                    <div 
+                      onClick={() => toggleReportExpand(r.id)}
+                      className="p-8 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/90 transition-colors flex flex-col md:flex-row justify-between items-start md:items-center border-b border-transparent group-hover:border-slate-100 dark:group-hover:border-slate-700"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-2">
+                          <h3 className="font-black text-3xl">{r.title}</h3>
+                          {isExpanded ? (
+                            <span className="material-symbols-outlined text-slate-400">expand_less</span>
+                          ) : (
+                            <span className="material-symbols-outlined text-slate-400">expand_more</span>
+                          )}
+                        </div>
+                        <p className="text-secondary font-bold uppercase tracking-widest text-xs">{r.subject?.name} • {r.term} • {r.level}</p>
+                      </div>
+                      
+                      <div className="flex items-center gap-6 mt-4 md:mt-0 shrink-0">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleExportCSV(r); }}
+                          className="hidden md:flex items-center gap-2 px-4 py-3 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 font-bold rounded-xl hover:bg-emerald-100 transition-colors tooltip"
+                          title="Export to Excel (CSV)"
+                        >
+                          <span className="material-symbols-outlined text-lg">download</span>
+                        </button>
+                        <div className="text-center bg-slate-50 dark:bg-slate-900/50 px-6 py-3 rounded-2xl border border-slate-200 dark:border-slate-700">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Attempts</p>
+                          <p className="text-2xl font-black text-slate-700 dark:text-slate-300">{r.totalAttempts}</p>
+                        </div>
+                        <div className="text-center bg-slate-50 dark:bg-slate-900/50 px-6 py-3 rounded-2xl border border-slate-200 dark:border-slate-700">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Class Average</p>
+                          <div className={`text-2xl font-black ${r.avgScore >= 75 ? 'text-green-500' : r.avgScore >= 50 ? 'text-amber-500' : 'text-rose-500'}`}>
+                            {r.avgScore !== null ? `${r.avgScore}` : '--'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* ACCORDION CONTENT */}
+                    {isExpanded && (
+                      <div className="p-8 bg-slate-50/50 dark:bg-slate-900/20 border-t border-slate-200 dark:border-slate-700 animate-in slide-in-from-top-2 duration-300">
+                        <div className="flex justify-between items-end mb-6">
+                           <h4 className="font-bold text-slate-500 uppercase tracking-widest text-sm">Detailed Attempts</h4>
+                           <button onClick={(e) => handleExportCSV(r)} className="md:hidden flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 font-bold rounded-lg text-sm"><span className="material-symbols-outlined text-sm">download</span> Export CSV</button>
+                        </div>
+
+                        {r.attempts && r.attempts.length > 0 ? (
+                          <div className="overflow-x-auto bg-white dark:bg-slate-950 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="border-b border-slate-200 dark:border-slate-800 text-xs font-black uppercase tracking-widest text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
+                                  <th className="py-4 px-6 w-16">#</th>
+                                  <th className="py-4 px-6">Student Name</th>
+                                  <th className="py-4 px-6">Classroom</th>
+                                  <th className="py-4 px-6">Timestamp</th>
+                                  <th className="py-4 px-6 text-right">Score</th>
+                                  <th className="py-4 px-6 text-center w-24">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="text-sm font-bold">
+                                {r.attempts.map((att: any, idx: number) => (
+                                  <tr key={att.id} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors group/row">
+                                    <td className="py-4 px-6 text-slate-400">{idx + 1}</td>
+                                    <td className="py-4 px-6">
+                                      {att.student?.name}
+                                      {att.isCheated && <span className="ml-3 text-[10px] bg-rose-100 text-rose-600 px-2 py-1 rounded font-black tracking-widest uppercase tooltip" title="Flagged by Anti-Cheat">FLAGGED</span>}
+                                    </td>
+                                    <td className="py-4 px-6 text-slate-500">
+                                      {att.student?.classRoom ? (
+                                        <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg text-xs tracking-wider">{att.student.classRoom.name}</span>
+                                      ) : <span className="text-slate-400 italic">N/A</span>}
+                                    </td>
+                                    <td className="py-4 px-6 text-slate-500 font-mono text-xs">{new Date(att.endTime).toLocaleString()}</td>
+                                    <td className={`py-4 px-6 text-right font-black text-xl ${att.score >= 75 ? 'text-green-600' : att.score >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                      {att.score ?? '?'}
+                                    </td>
+                                    <td className="py-4 px-6">
+                                      <div className="flex gap-2 justify-center opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                        <button onClick={() => openEditAttempt(att)} className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 flex items-center justify-center hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors" title="Edit Score">
+                                          <span className="material-symbols-outlined text-[16px]">edit</span>
+                                        </button>
+                                        <button onClick={() => handleDeleteAttempt(att)} className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-500 flex items-center justify-center hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors" title="Delete Attempt">
+                                          <span className="material-symbols-outlined text-[16px]">delete</span>
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-center font-bold text-slate-400 py-8 bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">No recorded attempts yet.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )})}
               </div>
             )}
           </div>
@@ -599,7 +831,11 @@ export default function TeacherDashboard() {
             <form onSubmit={handleCreateExam} className="space-y-5 overflow-y-auto pr-1 custom-scrollbar">
               <input required autoFocus value={newEx.title} onChange={e => setNewEx({ ...newEx, title: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 rounded-2xl py-4 px-5 font-medium outline-none" placeholder="Exam Title..." />
               <div className="grid grid-cols-2 gap-6">
-                <select required value={newEx.subjectId} onChange={e => setNewEx({ ...newEx, subjectId: e.target.value })} className="w-full bg-slate-50 border rounded-2xl py-4 px-5 font-bold outline-none">
+                <select required value={newEx.subjectId} onChange={e => {
+                  const sId = e.target.value;
+                  const subj = subjects.find((s:any) => s.id === sId);
+                  setNewEx({ ...newEx, subjectId: sId, level: subj?.level || newEx.level, classRoomIds: [] });
+                }} className="w-full bg-slate-50 border rounded-2xl py-4 px-5 font-bold outline-none">
                   <option value="" disabled>Select Subject...</option>
                   {subjects.map((s:any) => <option key={s.id} value={s.id}>{s.name} ({s.level})</option>)}
                 </select>
@@ -607,13 +843,84 @@ export default function TeacherDashboard() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <ActionCheckboxList title="Assign to Classrooms" icon="meeting_room" items={classRooms} selectedIds={newEx.classRoomIds} field="newEx" listName="classRoomIds" />
+                 <ActionCheckboxList 
+                   title="Assign to Classrooms" 
+                   icon="meeting_room" 
+                   items={newEx.subjectId ? classRooms.filter(cr => cr.level === subjects.find(s => s.id === newEx.subjectId)?.level) : classRooms} 
+                   selectedIds={newEx.classRoomIds} 
+                   field="newEx" 
+                   listName="classRoomIds" 
+                 />
                  <ActionCheckboxList title="Share with Teachers" icon="group" items={teachers} selectedIds={newEx.sharedWithIds} field="newEx" listName="sharedWithIds" />
               </div>
 
               <div className="flex gap-4 pt-4 mt-6 border-t border-slate-200 dark:border-slate-800">
                 <button type="button" onClick={() => setShowExamModal(false)} className="flex-1 font-bold py-4 text-slate-500">Cancel</button>
                 <button type="submit" disabled={newEx.classRoomIds.length === 0} className="flex-[3] bg-gradient-to-r from-secondary to-tertiary text-white font-black py-4 rounded-2xl text-lg disabled:opacity-50 disabled:grayscale transition-all">Publish Exam</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {dialog.isOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center relative overflow-hidden">
+            {dialog.type === 'danger' && <div className="absolute top-0 left-0 w-full h-2 bg-rose-500"></div>}
+            {dialog.type === 'confirm' && <div className="absolute top-0 left-0 w-full h-2 bg-primary"></div>}
+            {dialog.type === 'alert' && <div className="absolute top-0 left-0 w-full h-2 bg-amber-500"></div>}
+            
+            <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-6 mt-2 ${dialog.type === 'danger' ? 'bg-rose-100 text-rose-500' : dialog.type === 'confirm' ? 'bg-primary/10 text-primary' : 'bg-amber-100 text-amber-500'}`}>
+              <span className="material-symbols-outlined text-3xl">{dialog.type === 'danger' ? 'warning' : dialog.type === 'alert' ? 'info' : 'help'}</span>
+            </div>
+            
+            <h3 className="font-black text-2xl mb-3 text-slate-800 dark:text-white">{dialog.title}</h3>
+            <p className="text-slate-500 font-medium mb-8 leading-relaxed">{dialog.message}</p>
+            
+            <div className="flex gap-3">
+              {dialog.type !== 'alert' && (
+                <button onClick={() => setDialog({...dialog, isOpen: false})} className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Cancel</button>
+              )}
+              <button 
+                onClick={() => {
+                  setDialog({...dialog, isOpen: false});
+                  if (dialog.onConfirm) dialog.onConfirm();
+                }} 
+                className={`flex-1 px-4 py-3 text-white font-bold rounded-xl transition-transform hover:scale-105 shadow-lg ${dialog.type === 'danger' ? 'bg-rose-500 shadow-rose-500/30' : dialog.type === 'confirm' ? 'bg-primary shadow-primary/30' : 'bg-slate-800 dark:bg-slate-700 shadow-slate-900/20'}`}
+              >
+                {dialog.type === 'alert' ? 'Got it' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SCORE EDIT MODAL */}
+      {scoreModal.isOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full shadow-2xl relative">
+            <h3 className="font-black text-2xl mb-2 text-slate-800 dark:text-white">Edit Score</h3>
+            <p className="text-sm font-semibold text-slate-500 mb-6">Modify exam score for <span className="text-primary font-bold">{scoreModal.attempt?.student?.name}</span></p>
+            
+            <form onSubmit={handleSaveScore}>
+              <div className="mb-6 relative">
+                <input 
+                  type="number" 
+                  autoFocus
+                  required
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={scoreModal.score}
+                  onChange={e => setScoreModal({ ...scoreModal, score: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-4 flex flex-col justify-center text-center font-black text-4xl text-primary outline-none focus:ring-4 focus:ring-primary/20 transition-all custom-number-input"
+                />
+                <span className="absolute top-1/2 -translate-y-1/2 right-6 font-bold text-slate-300 text-xl pointer-events-none">/100</span>
+              </div>
+              
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setScoreModal({...scoreModal, isOpen: false})} className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 transition-transform hover:scale-105 hover:bg-primary/90">Save</button>
               </div>
             </form>
           </div>

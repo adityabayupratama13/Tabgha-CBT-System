@@ -14,6 +14,10 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>("DASHBOARD");
   const [newUserRole, setNewUserRole] = useState<"STUDENT" | "TEACHER" | "ADMIN">("STUDENT");
 
+  const [dialog, setDialog] = useState<{isOpen: boolean, title: string, message: string, type: "confirm"|"alert"|"danger", onConfirm?: () => void}>({isOpen: false, title: "", message: "", type: "alert"});
+  const showConfirm = (title: string, message: string, onConfirm: () => void, type: "confirm"|"danger" = "confirm") => setDialog({isOpen: true, title, message, type, onConfirm});
+  const showAlert = (title: string, message: string, type: "alert"|"danger" = "alert") => setDialog({isOpen: true, title, message, type});
+
   // User form
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -68,9 +72,10 @@ export default function AdminDashboard() {
     } catch {}
   };
 
-  const handleDeleteClassroom = async (id: string) => {
-    if (!confirm("Delete this room?")) return;
-    try { const res = await fetch(`/api/classrooms?id=${id}`, { method: "DELETE" }); if (res.ok) fetchClassrooms(); } catch {}
+  const handleDeleteClassroom = async (id: string, name: string) => {
+    showConfirm("Delete Classroom", `Are you sure you want to delete ${name}?`, async () => {
+      try { const res = await fetch(`/api/classrooms?id=${id}`, { method: "DELETE" }); if (res.ok) fetchClassrooms(); } catch {}
+    }, "danger");
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -90,12 +95,13 @@ export default function AdminDashboard() {
     finally { setLoading(false); }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
-    try {
-      const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
-      if (res.ok) fetchUsers(); else alert("Failed to delete (Cannot delete master admin)");
-    } catch {}
+  const handleDeleteUser = async (id: string, username: string) => {
+    showConfirm("Delete Account", `Are you sure you want to delete @${username}?`, async () => {
+      try {
+        const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
+        if (res.ok) fetchUsers(); else showAlert("Action Failed", "Cannot delete master admin account", "danger");
+      } catch {}
+    }, "danger");
   };
 
   const handleUpdateSettings = async (e: React.FormEvent) => {
@@ -453,7 +459,7 @@ export default function AdminDashboard() {
                               <button onClick={() => setEditingUser(u)} className="p-2 rounded-lg text-[#004253] dark:text-[#00afd1] hover:bg-[#004253]/10 transition-colors" title="Edit">
                                 <span className="material-symbols-outlined text-sm">edit</span>
                               </button>
-                              <button onClick={() => handleDeleteUser(u.id)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors" title="Delete">
+                              <button onClick={() => handleDeleteUser(u.id, u.username)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors" title="Delete">
                                 <span className="material-symbols-outlined text-sm">delete</span>
                               </button>
                             </div>
@@ -511,7 +517,7 @@ export default function AdminDashboard() {
                         <div key={cr.id} className="bg-white dark:bg-[#161b22] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between group hover:border-[#004253]/30 hover:-translate-y-1 transition-all">
                           <div className="flex justify-between items-start mb-4">
                             <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg bg-[#004253]/10 text-[#004253] dark:text-[#00afd1]">{cr.level}</span>
-                            <button onClick={() => handleDeleteClassroom(cr.id)} className="p-1.5 rounded-lg text-rose-500 bg-rose-50 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={() => handleDeleteClassroom(cr.id, cr.name)} className="p-1.5 rounded-lg text-rose-500 bg-rose-50 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 opacity-0 group-hover:opacity-100 transition-all">
                               <span className="material-symbols-outlined text-sm">delete</span>
                             </button>
                           </div>
@@ -588,7 +594,7 @@ export default function AdminDashboard() {
               try {
                 const res = await fetch(`/api/users/${editingUser.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editingUser) });
                 const data = await res.json();
-                if (res.ok) { setEditingUser(null); fetchUsers(); } else alert(data.error);
+                if (res.ok) { setEditingUser(null); fetchUsers(); } else showAlert("Error", data.error, "danger");
               } catch {}
             }} className="space-y-4">
               <div>
@@ -708,6 +714,37 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {dialog.isOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center relative overflow-hidden">
+            {dialog.type === 'danger' && <div className="absolute top-0 left-0 w-full h-2 bg-rose-500"></div>}
+            {dialog.type === 'confirm' && <div className="absolute top-0 left-0 w-full h-2 bg-[#004253]"></div>}
+            {dialog.type === 'alert' && <div className="absolute top-0 left-0 w-full h-2 bg-amber-500"></div>}
+            
+            <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-6 mt-2 ${dialog.type === 'danger' ? 'bg-rose-100 text-rose-500' : dialog.type === 'confirm' ? 'bg-[#004253]/10 text-[#004253] dark:text-[#00afd1]' : 'bg-amber-100 text-amber-500'}`}>
+              <span className="material-symbols-outlined text-3xl">{dialog.type === 'danger' ? 'warning' : dialog.type === 'alert' ? 'info' : 'help'}</span>
+            </div>
+            
+            <h3 className="font-black text-2xl mb-3 text-slate-800 dark:text-white">{dialog.title}</h3>
+            <p className="text-slate-500 font-medium mb-8 leading-relaxed">{dialog.message}</p>
+            
+            <div className="flex gap-3">
+              {dialog.type !== 'alert' && (
+                <button onClick={() => setDialog({...dialog, isOpen: false})} className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Cancel</button>
+              )}
+              <button 
+                onClick={() => {
+                  setDialog({...dialog, isOpen: false});
+                  if (dialog.onConfirm) dialog.onConfirm();
+                }} 
+                className={`flex-1 px-4 py-3 text-white font-bold rounded-xl transition-transform hover:scale-105 shadow-lg ${dialog.type === 'danger' ? 'bg-rose-500 shadow-rose-500/30' : dialog.type === 'confirm' ? 'bg-[#004253] shadow-[#004253]/30' : 'bg-slate-800 dark:bg-slate-700 shadow-slate-900/20'}`}
+              >
+                {dialog.type === 'alert' ? 'Got it' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

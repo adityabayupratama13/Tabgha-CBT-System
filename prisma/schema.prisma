@@ -73,12 +73,13 @@ model Exam {
   level       Level
   classRooms  ClassRoom[] @relation("ExamClassRooms")
   subjectId   String
-  subject     Subject  @relation(fields: [subjectId], references: [id])
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   durationMin Int
   status      String   @default("DRAFT")
   createdById String?
   createdBy   User?    @relation("ExamCreator", fields: [createdById], references: [id], onDelete: SetNull)
   sharedWith  User[]   @relation("ExamSharedWith")
+  attempts    ExamAttempt[]
   createdAt   DateTime @default(now())
 }
 
@@ -92,6 +93,7 @@ model ExamAttempt {
   isCheated  Boolean  @default(false)
   cheatLogs  CheatLog[]
   student    User     @relation(fields: [studentId], references: [id])
+  exam       Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
 }
 
 model CheatLog {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export function useAntiCheat() {
+export function useAntiCheat(options?: { onCheatDetected?: (msg: string) => void }) {
   const [warnings, setWarnings] = useState<number>(0);
   const [isExamActive, setIsExamActive] = useState(false);
 
@@ -13,14 +13,14 @@ export function useAntiCheat() {
       if (document.hidden) {
         setWarnings((prev) => prev + 1);
         reportCheat("TAB_SWITCH_OR_MINIMIZE");
-        alert("WARNING: You have switched away from the exam tab. This action has been logged.");
+        if (options?.onCheatDetected) options.onCheatDetected("WARNING: You have switched away from the exam tab. This action has been logged.");
       }
     };
 
     const handleWindowBlur = () => {
       setWarnings((prev) => prev + 1);
       reportCheat("WINDOW_LOST_FOCUS");
-      alert("WARNING: The exam window lost focus. This action has been logged.");
+      if (options?.onCheatDetected) options.onCheatDetected("WARNING: The exam window lost focus. This action has been logged.");
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -47,5 +47,7 @@ export function useAntiCheat() {
     }
   };
 
-  return { warnings, isExamActive, startExam };
+  const suspendExam = () => setIsExamActive(false);
+
+  return { warnings, isExamActive, startExam, suspendExam };
 }
