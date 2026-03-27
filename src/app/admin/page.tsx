@@ -148,6 +148,31 @@ export default function AdminDashboard() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [lang, setLang] = useState<"EN" | "ID">("EN");
+
+  useEffect(() => {
+    const t = localStorage.getItem("theme");
+    if (t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      setTheme("dark"); document.documentElement.classList.add("dark");
+    }
+    const l = localStorage.getItem("lang") as "EN" | "ID";
+    if (l) setLang(l);
+  }, []);
+
+  const toggleTheme = () => {
+    const n = theme === "light" ? "dark" : "light";
+    setTheme(n);
+    localStorage.setItem("theme", n);
+    if (n === "dark") document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+  };
+
+  const toggleLang = () => {
+    const n = lang === "EN" ? "ID" : "EN";
+    setLang(n);
+    localStorage.setItem("lang", n);
+  };
 
   const downloadCSVTemplate = () => {
     const csvData = "Name,Username,Password,Role,Level,Grade,ClassName\nJohn Doe,johndoe123,pass123,STUDENT,SMA,10,A\nJane Smith,teacherjane,pass123,TEACHER,,,";
@@ -191,10 +216,10 @@ export default function AdminDashboard() {
   };
 
   const NAV_ITEMS: { id: Tab; icon: string; label: string; sublabel?: string }[] = [
-    { id: "DASHBOARD", icon: "bar_chart_4_bars", label: "Dashboard", sublabel: "System overview" },
-    { id: "USERS", icon: "manage_accounts", label: "User Management", sublabel: "Roles & accounts" },
-    { id: "CLASSES", icon: "meeting_room", label: "Class & Rooms", sublabel: "Room mapping" },
-    { id: "SETTINGS", icon: "settings", label: "System Settings", sublabel: "Global config" },
+    { id: "DASHBOARD", icon: "bar_chart_4_bars", label: lang === "ID" ? "Dasbor Utama" : "Dashboard", sublabel: lang === "ID" ? "Ringkasan Sistem" : "System overview" },
+    { id: "USERS", icon: "manage_accounts", label: lang === "ID" ? "Manajemen Pengguna" : "User Management", sublabel: lang === "ID" ? "Peran & Akun" : "Roles & accounts" },
+    { id: "CLASSES", icon: "meeting_room", label: lang === "ID" ? "Master Kelas" : "Class & Rooms", sublabel: lang === "ID" ? "Pemetaan Ruangan" : "Room mapping" },
+    { id: "SETTINGS", icon: "settings", label: lang === "ID" ? "Pengaturan Global" : "System Settings", sublabel: lang === "ID" ? "Konfigurasi Sistem" : "Global config" },
   ];
 
   return (
@@ -237,15 +262,27 @@ export default function AdminDashboard() {
             );
           })}
 
-          <div className="pt-2 pb-1">
-            <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Support</p>
+          <div className="pt-2 pb-1 mt-2">
+            <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{lang === "ID" ? "Preferensi" : "Preferences"}</p>
+          </div>
+          <div className="px-4 flex gap-2 mb-2">
+            <button onClick={toggleTheme} className="flex-1 flex items-center justify-center py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 tooltip" title="Toggle Dark/Light Mode">
+              <span className="material-symbols-outlined text-lg">{theme === "dark" ? "light_mode" : "dark_mode"}</span>
+            </button>
+            <button onClick={toggleLang} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 font-black text-xs tooltip" title="Change Language">
+              <span className="material-symbols-outlined text-lg">translate</span> {lang}
+            </button>
+          </div>
+
+          <div className="pt-2 pb-1 border-t border-slate-100 dark:border-slate-800/50">
+            <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{lang === "ID" ? "Bantuan" : "Support"}</p>
           </div>
 
           <button onClick={() => setShowManual(true)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-all group">
             <span className="material-symbols-outlined text-xl text-slate-400 shrink-0 group-hover:text-amber-500 group-hover:scale-110 transition-transform">menu_book</span>
             <div>
-              <p className="font-bold text-sm leading-none">User Guide</p>
-              <p className="text-[10px] mt-0.5 text-slate-400">Manual & documentation</p>
+              <p className="font-bold text-sm leading-none">{lang === "ID" ? "Buku Panduan" : "User Guide"}</p>
+              <p className="text-[10px] mt-0.5 text-slate-400">{lang === "ID" ? "Manual & dokumentasi" : "Manual & documentation"}</p>
             </div>
           </button>
         </nav>
@@ -265,7 +302,7 @@ export default function AdminDashboard() {
             ))}
           </div>
           <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors">
-            <span className="material-symbols-outlined text-sm">logout</span> Sign Out
+            <span className="material-symbols-outlined text-sm">logout</span> {lang === "ID" ? "Keluar Sistem" : "Sign Out"}
           </button>
         </div>
       </aside>
@@ -297,7 +334,7 @@ export default function AdminDashboard() {
                 ws.addRow({ m: "Active Exams", v: stats.examCount });
                 const buf = await wb.xlsx.writeBuffer(); saveAs(new Blob([buf]), "dashboard_stats.xlsx");
               }} className="flex items-center gap-2 px-4 py-2.5 bg-[#004253] text-white rounded-xl font-bold text-sm shadow-lg hover:bg-[#005f74] active:scale-95 transition-all">
-                <span className="material-symbols-outlined text-sm">table</span> Export Stats
+                <span className="material-symbols-outlined text-sm">table</span> {lang === "ID" ? "Ekspor Statistik" : "Export Stats"}
               </button>
             )}
           </div>

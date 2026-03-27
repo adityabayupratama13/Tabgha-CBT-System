@@ -57,11 +57,34 @@ export default function TeacherDashboard() {
   });
 
   const [currentUserName, setCurrentUserName] = useState("Professor");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [lang, setLang] = useState<"EN" | "ID">("EN");
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|;\s*)userName=([^;]*)/);
     if (match) setCurrentUserName(decodeURIComponent(match[1]));
+
+    const t = localStorage.getItem("theme");
+    if (t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      setTheme("dark"); document.documentElement.classList.add("dark");
+    }
+    const l = localStorage.getItem("lang") as "EN" | "ID";
+    if (l) setLang(l);
   }, []);
+
+  const toggleTheme = () => {
+    const n = theme === "light" ? "dark" : "light";
+    setTheme(n);
+    localStorage.setItem("theme", n);
+    if (n === "dark") document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+  };
+
+  const toggleLang = () => {
+    const n = lang === "EN" ? "ID" : "EN";
+    setLang(n);
+    localStorage.setItem("lang", n);
+  };
 
   const fetchSubjects = useCallback(async () => {
     try {
@@ -501,23 +524,41 @@ export default function TeacherDashboard() {
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">CBT Tabgha</p>
           </div>
           <nav className="flex-1 px-4 space-y-2">
-            {[ { id: "DASHBOARD", icon: "dashboard", label: "Overview" }, { id: "QUESTION_BANK", icon: "quiz", label: "Question Bank" }, { id: "EXAMS", icon: "history_edu", label: "Exam Schedule" }, { id: "REPORTS", icon: "analytics", label: "Reports & Analytics" }].map((tab: any) => (
+            {[ 
+              { id: "DASHBOARD", icon: "dashboard", label: lang === "ID" ? "Dasbor Utama" : "Overview" }, 
+              { id: "QUESTION_BANK", icon: "quiz", label: lang === "ID" ? "Bank Soal" : "Question Bank" }, 
+              { id: "EXAMS", icon: "history_edu", label: lang === "ID" ? "Jadwal Ujian" : "Exam Schedule" }, 
+              { id: "REPORTS", icon: "analytics", label: lang === "ID" ? "Laporan & Evaluasi" : "Reports & Analytics" }
+            ].map((tab: any) => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-bold transition-all duration-300 ${activeTab === tab.id ? "bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg shadow-primary/30 translate-x-2" : "text-slate-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-white"}`}>
                 <span className="material-symbols-outlined text-[22px]">{tab.icon}</span> {tab.label}
               </button>
             ))}
           </nav>
           
-          <div className="px-6 pb-2">
+          <div className="pt-2 mt-4 border-t border-slate-200/50 dark:border-slate-800/50">
+            <p className="px-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 mt-2">{lang === "ID" ? "Preferensi" : "Preferences"}</p>
+            <div className="px-6 flex gap-2">
+              <button onClick={toggleTheme} className="flex-1 flex items-center justify-center py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 tooltip" title="Toggle Dark/Light Mode">
+                <span className="material-symbols-outlined text-lg">{theme === "dark" ? "light_mode" : "dark_mode"}</span>
+              </button>
+              <button onClick={toggleLang} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 font-black text-xs tooltip" title="Change Language">
+                <span className="material-symbols-outlined text-lg">translate</span> {lang}
+              </button>
+            </div>
+          </div>
+
+          <div className="px-6 pb-2 mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-800/50">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{lang === "ID" ? "Bantuan" : "Support"}</p>
             <button onClick={() => setShowManual(true)} className="w-full flex items-center justify-start gap-4 py-3 px-6 rounded-2xl font-bold text-slate-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-white transition-all group">
               <span className="material-symbols-outlined text-[20px] group-hover:text-amber-500 transition-colors">menu_book</span>
-              <span>User Guide</span>
+              <span>{lang === "ID" ? "Buku Panduan" : "User Guide"}</span>
             </button>
           </div>
 
           <div className="px-6 mt-auto pb-10">
             <button onClick={handleLogout} className="w-full flex items-center gap-3 px-6 py-4 rounded-2xl font-bold bg-error/10 text-error hover:bg-error/20 hover:-translate-y-1 transition-all">
-              <span className="material-symbols-outlined">logout</span> Session Logout
+              <span className="material-symbols-outlined">logout</span> {lang === "ID" ? "Keluar Sistem" : "Session Logout"}
             </button>
           </div>
         </aside>
@@ -527,10 +568,10 @@ export default function TeacherDashboard() {
             <div className="flex justify-between items-end">
               <div>
                 <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                  {activeTab === "DASHBOARD" ? `Welcome, ${currentUserName.split(" ")[0]}.` : activeTab === "QUESTION_BANK" ? "Knowledge Vault" : activeTab === "REPORTS" ? "Reports & Analytics" : "Exam Schedule"}
+                  {activeTab === "DASHBOARD" ? (lang === "ID" ? `Selamat Datang, ${currentUserName.split(" ")[0]}.` : `Welcome, ${currentUserName.split(" ")[0]}.`) : activeTab === "QUESTION_BANK" ? (lang === "ID" ? "Pusat Bank Soal" : "Knowledge Vault") : activeTab === "REPORTS" ? (lang === "ID" ? "Analitik Pembelajaran" : "Reports & Analytics") : (lang === "ID" ? "Jadwal Evaluasi" : "Exam Schedule")}
                 </h1>
                 <p className="text-slate-500 font-medium mt-3 text-lg">
-                  {activeTab === "DASHBOARD" ? "Empowering minds through structured evaluations." : activeTab === "QUESTION_BANK" ? "Build and curate questions, essays, and media." : activeTab === "REPORTS" ? "Analyze student performance." : "Deploy and monitor active term examinations."}
+                  {activeTab === "DASHBOARD" ? (lang === "ID" ? "Berdayakan kemampuan siswa melalui evaluasi terstruktur." : "Empowering minds through structured evaluations.") : activeTab === "QUESTION_BANK" ? (lang === "ID" ? "Bangun dan kelola arsip soal interaktif." : "Build and curate questions, essays, and media.") : activeTab === "REPORTS" ? (lang === "ID" ? "Waktu yang tepat untuk analisa peningkatan murid." : "Analyze student performance.") : (lang === "ID" ? "Kirim modul evaluasi dan monitor status harian." : "Deploy and monitor active term examinations.")}
                 </p>
               </div>
               <div className="flex gap-4 items-center">

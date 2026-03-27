@@ -10,11 +10,20 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [currentUserName, setCurrentUserName] = useState("Scholar");
   const [showManual, setShowManual] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [lang, setLang] = useState<"EN" | "ID">("EN");
   const router = useRouter();
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|;\s*)userName=([^;]*)/);
     if (match) setCurrentUserName(decodeURIComponent(match[1]));
+
+    const t = localStorage.getItem("theme");
+    if (t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      setTheme("dark"); document.documentElement.classList.add("dark");
+    }
+    const l = localStorage.getItem("lang") as "EN" | "ID";
+    if (l) setLang(l);
 
     const fetchAll = async () => {
       try {
@@ -46,6 +55,20 @@ export default function StudentDashboard() {
     document.cookie = "userId=; path=/; max-age=0";
     document.cookie = "userName=; path=/; max-age=0";
     window.location.href = "/";
+  };
+
+  const toggleTheme = () => {
+    const n = theme === "light" ? "dark" : "light";
+    setTheme(n);
+    localStorage.setItem("theme", n);
+    if (n === "dark") document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+  };
+
+  const toggleLang = () => {
+    const n = lang === "EN" ? "ID" : "EN";
+    setLang(n);
+    localStorage.setItem("lang", n);
   };
 
   const hasCompleted = (examId: string) => results.some(r => r.examId === examId);
@@ -126,22 +149,36 @@ export default function StudentDashboard() {
         <nav className="flex flex-col h-full px-4 gap-2">
           <button onClick={() => setActiveTab("EXAMS")} className={`w-full flex items-center justify-start gap-4 py-4 px-6 rounded-2xl font-bold transition-all ${activeTab === "EXAMS" ? "text-primary bg-primary/10 shadow-sm" : "text-on-surface-variant hover:bg-slate-200/50 dark:hover:bg-slate-800/50"}`}>
             <span className="material-symbols-outlined text-[20px]">quiz</span>
-            <span>Active Exams</span>
+            <span>{lang === "ID" ? "Ujian Aktif" : "Active Exams"}</span>
           </button>
           <button onClick={() => setActiveTab("RESULTS")} className={`w-full flex items-center justify-start gap-4 py-4 px-6 rounded-2xl font-bold transition-all ${activeTab === "RESULTS" ? "text-primary bg-primary/10 shadow-sm" : "text-on-surface-variant hover:bg-slate-200/50 dark:hover:bg-slate-800/50"}`}>
             <span className="material-symbols-outlined text-[20px]">analytics</span>
-            <span>Results History</span>
+            <span>{lang === "ID" ? "Riwayat Ujian" : "Results History"}</span>
           </button>
         </nav>
-        <div className="px-4 mt-2">
+        
+        <div className="pt-2 mt-4 px-6 border-t border-slate-200/50 dark:border-slate-800/50">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 mt-2">{lang === "ID" ? "Preferensi" : "Preferences"}</p>
+          <div className="flex gap-2 mb-4">
+            <button onClick={toggleTheme} className="flex-1 flex items-center justify-center py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 tooltip" title="Toggle Dark/Light Mode">
+              <span className="material-symbols-outlined text-lg">{theme === "dark" ? "light_mode" : "dark_mode"}</span>
+            </button>
+            <button onClick={toggleLang} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 font-black text-xs tooltip" title="Change Language">
+              <span className="material-symbols-outlined text-lg">translate</span> {lang}
+            </button>
+          </div>
+        </div>
+
+        <div className="px-4 mb-2 border-t border-slate-200/50 dark:border-slate-800/50 pt-4">
+          <p className="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{lang === "ID" ? "Bantuan" : "Support"}</p>
           <button onClick={() => setShowManual(true)} className="w-full flex items-center justify-start gap-4 py-4 px-6 rounded-2xl font-bold transition-all text-on-surface-variant hover:bg-slate-200/50 dark:hover:bg-slate-800/50 group">
             <span className="material-symbols-outlined text-[20px] group-hover:text-amber-500 transition-colors">menu_book</span>
-            <span>User Guide</span>
+            <span>{lang === "ID" ? "Buku Panduan" : "User Guide"}</span>
           </button>
         </div>
-        <div className="p-6 mt-auto">
+        <div className="p-6 mt-auto border-t border-slate-200/50 dark:border-slate-800/50">
           <button onClick={handleLogout} className="w-full py-4 text-error font-bold flex items-center justify-center gap-2 hover:bg-error/10 rounded-2xl transition-colors">
-            <span className="material-symbols-outlined">logout</span> Log Out
+            <span className="material-symbols-outlined">logout</span> {lang === "ID" ? "Keluar Sistem" : "Log Out"}
           </button>
         </div>
       </aside>
@@ -161,8 +198,8 @@ export default function StudentDashboard() {
               <section className="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-12">
                 <div className="xl:col-span-2 flex flex-col justify-center space-y-5 p-4 relative">
                   <div className="absolute top-0 right-10 -z-10 bg-primary/20 w-32 h-32 blur-[80px] rounded-full pointer-events-none"></div>
-                  <h1 className="font-headline font-black text-5xl lg:text-6xl text-on-background tracking-tighter leading-tight">Welcome back,<br/><span className="text-primary">{currentUserName.split(" ")[0]}.</span></h1>
-                  <p className="text-on-surface-variant font-medium text-lg max-w-md">Your intellectual journey continues. Ready to demonstrate your mastery in today's examinations?</p>
+                  <h1 className="font-headline font-black text-5xl lg:text-6xl text-on-background tracking-tighter leading-tight">{lang === "ID" ? "Selamat datang," : "Welcome back,"}<br/><span className="text-primary">{currentUserName.split(" ")[0]}.</span></h1>
+                  <p className="text-on-surface-variant font-medium text-lg max-w-md">{lang === "ID" ? "Perjalanan intelektualmu berlanjut. Siap untuk menunjukkan penguasaanmu di ujian hari ini?" : "Your intellectual journey continues. Ready to demonstrate your mastery in today's examinations?"}</p>
                 </div>
                 
                 <div className="bg-white/60 dark:bg-slate-900/60 p-8 rounded-3xl flex flex-col justify-between border border-outline-variant/30 shadow-xl shadow-slate-200/20 dark:shadow-none hover:-translate-y-2 transition-transform group">
