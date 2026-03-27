@@ -758,6 +758,7 @@ export default function AdminDashboard() {
                   icon: "manage_accounts", title: "2. User Management",
                   items: [
                     { bold: "Enroll New Member:", text: "Daftarkan akun baru (Admin / Teacher / Student) dengan username & password eksplisit." },
+                    { bold: "Bulk Register (CSV):", text: "Registrasi massal multi-role (Student/Teacher/Admin) sekaligus dengan mengunduh template CSV." },
                     { bold: "Filter Tabs:", text: "Tampilkan tabel berdasarkan role (ALL / STUDENT / TEACHER / ADMIN)." },
                     { bold: "Excel & PDF Export:", text: "Ekspor seluruh direktori pengguna ke dokumen formal." },
                     { bold: "Edit (ikon pensil):", text: "Ubah nama, username, atau reset password pengguna." },

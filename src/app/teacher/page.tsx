@@ -25,6 +25,7 @@ export default function TeacherDashboard() {
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [showExamModal, setShowExamModal] = useState(false);
+  const [showManual, setShowManual] = useState(false);
 
   const [dialog, setDialog] = useState<{isOpen: boolean, title: string, message: string, type: "confirm"|"alert"|"danger", onConfirm?: () => void}>({isOpen: false, title: "", message: "", type: "alert"});
   const showConfirm = (title: string, message: string, onConfirm: () => void, type: "confirm"|"danger" = "confirm") => setDialog({isOpen: true, title, message, type, onConfirm});
@@ -506,6 +507,14 @@ export default function TeacherDashboard() {
               </button>
             ))}
           </nav>
+          
+          <div className="px-6 pb-2">
+            <button onClick={() => setShowManual(true)} className="w-full flex items-center justify-start gap-4 py-3 px-6 rounded-2xl font-bold text-slate-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-white transition-all group">
+              <span className="material-symbols-outlined text-[20px] group-hover:text-amber-500 transition-colors">menu_book</span>
+              <span>User Guide</span>
+            </button>
+          </div>
+
           <div className="px-6 mt-auto pb-10">
             <button onClick={handleLogout} className="w-full flex items-center gap-3 px-6 py-4 rounded-2xl font-bold bg-error/10 text-error hover:bg-error/20 hover:-translate-y-1 transition-all">
               <span className="material-symbols-outlined">logout</span> Session Logout
@@ -1026,6 +1035,85 @@ export default function TeacherDashboard() {
                 <button type="submit" className="flex-1 px-4 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 transition-transform hover:scale-105 hover:bg-primary/90">Save</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ════════ MODAL: User Guide ════════ */}
+      {showManual && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-[#161b22] rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden">
+            <div className="flex items-center justify-between px-7 py-5 bg-gradient-to-r from-primary to-secondary shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-2xl text-white">menu_book</span>
+                <div>
+                  <h3 className="font-black text-white text-lg">Teacher Manual</h3>
+                  <p className="text-white/70 text-xs">Panduan operasional portal Guru Tabgha CBT</p>
+                </div>
+              </div>
+              <button onClick={() => setShowManual(false)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-7 space-y-5 flex-1">
+              {[
+                {
+                  icon: "dashboard", title: "1. Overview Dashboard",
+                  items: [
+                    { bold: "Fungsi:", text: "Melihat statistik total ujian Anda, mata pelajaran (subjects), dan bank soal Anda." },
+                  ]
+                },
+                {
+                  icon: "quiz", title: "2. Question Bank",
+                  items: [
+                    { bold: "New Subject:", text: "Buat mata pelajaran baru (Contoh: Biologi SMA). Share dengan guru lain agar mereka bisa menggunakannya." },
+                    { bold: "Manage Questions:", text: "Klik mata pelajaran untuk melihat daftar soal." },
+                    { bold: "Add Question:", text: "Tambahkan soal teks, gambar, atau video Youtube. Tentukan opsi jawaban A, B, C, D dan jawaban yang benar." },
+                  ]
+                },
+                {
+                  icon: "history_edu", title: "3. Exam Schedule",
+                  items: [
+                    { bold: "Schedule Exam:", text: "Terbitkan ujian baru menggunakan subject dari Question Bank." },
+                    { bold: "Assignments:", text: "Pilih kelas (Classroom) mana saja yang diizinkan mengerjakan ujian ini." },
+                    { bold: "Durasi:", text: "Atur limit waktu pengerjaan untuk murid dalam hitungan menit." },
+                    { bold: "Ubah Status:", text: "Anda dapat mematikan (Disable) ujian kapan saja agar tidak bisa diakses murid lagi." },
+                  ]
+                },
+                {
+                  icon: "analytics", title: "4. Reports & Analytics",
+                  items: [
+                    { bold: "Global Filter:", text: "Gunakan filter Tahun Ajaran, Term, dan Bulan di kanan atas untuk mencari laporan lama." },
+                    { bold: "Report Cards:", text: "Klik kartu laporan untuk melihat rincian attempts (percobaan) murid." },
+                    { bold: "Score Edit:", text: "Jika sistem Auto-grade salah mengkalkulasi atau murid terputus, Anda bisa klik tombol Edit (pensil) untuk merevisi nilai murid." },
+                    { bold: "Delete Attempt:", text: "Hapus attempt yang bermasalah agar murid bisa mencoba ulangan kembali dari awal." },
+                    { bold: "Export PDF/Excel:", text: "Unduh file rapor PDF (Format Kepala Sekolah) atau Spreadsheet Excel penuh warna untuk direkap." },
+                  ]
+                },
+              ].map(section => (
+                <div key={section.title} className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-5 border border-slate-200 dark:border-slate-700/60">
+                  <h4 className="font-bold text-primary dark:text-[#00afd1] flex items-center gap-2 mb-3 text-sm">
+                    <span className="material-symbols-outlined text-sm p-1.5 bg-primary/10 rounded-lg">{section.icon}</span>
+                    {section.title}
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {section.items.map((item, i) => (
+                      <li key={i} className="text-sm text-slate-600 dark:text-slate-400 flex gap-2">
+                        <span className="shrink-0 w-[6px] h-[6px] rounded-full bg-primary/40 mt-2"></span>
+                        <span><strong className="text-slate-800 dark:text-slate-200">{item.bold}</strong> {item.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-7 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end bg-slate-50 dark:bg-slate-900/40 shrink-0">
+              <button onClick={() => setShowManual(false)} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-bold rounded-xl text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-md">
+                <span className="material-symbols-outlined text-sm">thumb_up</span> Saya Mengerti
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -9,6 +9,7 @@ export default function StudentDashboard() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserName, setCurrentUserName] = useState("Scholar");
+  const [showManual, setShowManual] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -132,6 +133,12 @@ export default function StudentDashboard() {
             <span>Results History</span>
           </button>
         </nav>
+        <div className="px-4 mt-2">
+          <button onClick={() => setShowManual(true)} className="w-full flex items-center justify-start gap-4 py-4 px-6 rounded-2xl font-bold transition-all text-on-surface-variant hover:bg-slate-200/50 dark:hover:bg-slate-800/50 group">
+            <span className="material-symbols-outlined text-[20px] group-hover:text-amber-500 transition-colors">menu_book</span>
+            <span>User Guide</span>
+          </button>
+        </div>
         <div className="p-6 mt-auto">
           <button onClick={handleLogout} className="w-full py-4 text-error font-bold flex items-center justify-center gap-2 hover:bg-error/10 rounded-2xl transition-colors">
             <span className="material-symbols-outlined">logout</span> Log Out
@@ -291,6 +298,68 @@ export default function StudentDashboard() {
 
         </div>
       </main>
+      {/* ════════ MODAL: User Guide ════════ */}
+      {showManual && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-[#161b22] rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden">
+            <div className="flex items-center justify-between px-7 py-5 bg-gradient-to-r from-primary to-secondary shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-2xl text-white">menu_book</span>
+                <div>
+                  <h3 className="font-black text-white text-lg">Student Manual</h3>
+                  <p className="text-white/70 text-xs">Panduan penggunaan portal Siswa Tabgha CBT</p>
+                </div>
+              </div>
+              <button onClick={() => setShowManual(false)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-7 space-y-5 flex-1">
+              {[
+                {
+                  icon: "quiz", title: "1. Active Exams",
+                  items: [
+                    { bold: "Ujian Aktif:", text: "Lihat daftar ujian yang sedang berlangsung hari ini dan ditugaskan ke kelas Anda." },
+                    { bold: "Mulai Ujian:", text: "Klik tombol 'Begin Test' untuk masuk ke ruang ujian virtual." },
+                    { bold: "Status Selesai:", text: "Jika sudah mengerjakan ujian, maka ujian tersebut akan dikunci dan berstatus 'Completed'." },
+                  ]
+                },
+                {
+                  icon: "analytics", title: "2. Results History",
+                  items: [
+                    { bold: "Riwayat Ujian:", text: "Lihat kumpulan seluruh nilai dan ulangan yang pernah Anda laksanakan." },
+                    { bold: "Auto-grade:", text: "Nilai ujian akan tampil beserta warna yang merepresentasikan predikat Anda (Hijau, Kuning, atau Merah)." },
+                    { bold: "Download Certificate:", text: "Klik ikon PDF di sebelah kanan untuk mendownload sertifikat pencapaian." },
+                  ]
+                },
+              ].map(section => (
+                <div key={section.title} className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-5 border border-slate-200 dark:border-slate-700/60">
+                  <h4 className="font-bold text-primary dark:text-[#00afd1] flex items-center gap-2 mb-3 text-sm">
+                    <span className="material-symbols-outlined text-sm p-1.5 bg-primary/10 rounded-lg">{section.icon}</span>
+                    {section.title}
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {section.items.map((item, i) => (
+                      <li key={i} className="text-sm text-slate-600 dark:text-slate-400 flex gap-2">
+                        <span className="shrink-0 w-[6px] h-[6px] rounded-full bg-primary/40 mt-2"></span>
+                        <span><strong className="text-slate-800 dark:text-slate-200">{item.bold}</strong> {item.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-7 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end bg-slate-50 dark:bg-slate-900/40 shrink-0">
+              <button onClick={() => setShowManual(false)} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-bold rounded-xl text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-md">
+                <span className="material-symbols-outlined text-sm">thumb_up</span> Saya Mengerti
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
