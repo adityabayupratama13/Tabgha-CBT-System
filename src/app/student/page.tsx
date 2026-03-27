@@ -49,6 +49,65 @@ export default function StudentDashboard() {
 
   const hasCompleted = (examId: string) => results.some(r => r.examId === examId);
 
+  const handleDownloadCertificate = async (r: any) => {
+    const jsPDF = (await import("jspdf")).default;
+    const doc = new jsPDF() as any;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(28);
+    doc.setTextColor(0, 66, 83);
+    doc.text("TABGHA ACADEMIC", 105, 30, { align: "center" });
+
+    doc.setFontSize(14);
+    doc.setTextColor(100, 100, 100);
+    doc.text("OFFICIAL EXAM REPORT CARD", 105, 40, { align: "center" });
+
+    // Divider line
+    doc.setDrawColor(0, 66, 83);
+    doc.setLineWidth(0.5);
+    doc.line(20, 50, 190, 50);
+
+    doc.setFontSize(12);
+    doc.setTextColor(50, 50, 50);
+    doc.text("STUDENT DETAILS", 20, 65);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Name : ${currentUserName}`, 20, 75);
+    doc.text(`Role : Student`, 20, 83);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("EXAM DETAILS", 110, 65);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Title  : ${r.exam?.title}`, 110, 75);
+    doc.text(`Subject: ${r.exam?.subject?.name}`, 110, 83);
+    doc.text(`Term   : ${r.exam?.term} - ${r.exam?.level}`, 110, 91);
+
+    // Score box
+    doc.setFillColor(240, 247, 249);
+    doc.roundedRect(65, 110, 80, 40, 3, 3, "F");
+    
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 66, 83);
+    doc.text("FINAL SCORE", 105, 125, { align: "center" });
+
+    doc.setFontSize(36);
+    let scoreColor = [225, 29, 72]; // Red
+    if (r.score >= 75) scoreColor = [22, 163, 74]; // Green
+    else if (r.score >= 50) scoreColor = [217, 119, 6]; // Amber
+    
+    doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
+    doc.text(`${r.score !== null ? r.score : "N/A"}`, 105, 142, { align: "center" });
+
+    // Footer
+    doc.setFontSize(10);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Timestamp: ${new Date(r.endTime).toLocaleString()}`, 105, 270, { align: "center" });
+    doc.text(`Generated securely by Tabgha CBT Analytics`, 105, 278, { align: "center" });
+
+    doc.save(`Tabgha_ReportCard_${r.exam?.title.replace(/\s+/g, '_')}.pdf`);
+  };
+
   return (
     <div className="flex min-h-screen bg-surface selection:bg-primary/30 text-on-surface">
       <aside className="hidden lg:flex flex-col h-screen w-[280px] fixed left-0 top-0 pt-10 bg-[#e6f6ff]/40 dark:bg-slate-900/50 backdrop-blur-md border-r border-[#bfc8cc]/30 shadow-2xl z-20">
@@ -212,10 +271,17 @@ export default function StudentDashboard() {
                           <h4 className="font-black text-xl">{r.exam?.title}</h4>
                           <p className="text-sm font-bold text-slate-500">{r.exam?.subject?.name} • {r.exam?.term}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right hidden sm:block">
                           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Submitted On</p>
                           <p className="font-medium text-slate-800 dark:text-slate-200">{new Date(r.endTime).toLocaleDateString()} {new Date(r.endTime).toLocaleTimeString()}</p>
                         </div>
+                        <button 
+                          onClick={() => handleDownloadCertificate(r)}
+                          className="w-12 h-12 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-colors group/btn shrink-0 tooltip"
+                          title="Download PDF Report Card"
+                        >
+                          <span className="material-symbols-outlined group-hover/btn:scale-110 transition-transform">picture_as_pdf</span>
+                        </button>
                       </div>
                     ))}
                   </div>

@@ -382,19 +382,110 @@ export default function TeacherDashboard() {
     setExpandedReportIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  const handleExportCSV = (report: any) => {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Student Name,Classroom,Timestamp,Score\n";
-    report.attempts.forEach((att: any) => {
-      csvContent += `"${att.student?.name}","${att.student?.classRoom?.name || "N/A"}","${new Date(att.endTime).toLocaleString()}","${att.score ?? "N/A"}"\n`;
+  const handleExportPDF = async (report: any) => {
+    const jsPDF = (await import("jspdf")).default;
+    const autoTable = (await import("jspdf-autotable")).default;
+    const doc = new jsPDF() as any;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.setTextColor(0, 66, 83); 
+    doc.text("Tabgha Academic Report", 14, 22);
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Exam Title : ${report.title}`, 14, 34);
+    doc.text(`Subject    : ${report.subject?.name} | Term: ${report.term}`, 14, 40);
+    doc.text(`Level      : ${report.level} | Total Attempts: ${report.totalAttempts}`, 14, 46);
+    doc.text(`Average    : ${report.avgScore ?? '--'}`, 14, 52);
+
+    const tableData = report.attempts.map((att: any, idx: number) => [
+      idx + 1,
+      att.student?.name || "Unknown",
+      att.student?.classRoom?.name || "N/A",
+      new Date(att.endTime).toLocaleString(),
+      att.score ?? "0"
+    ]);
+
+    autoTable(doc, {
+      startY: 58,
+      head: [["#", "Student Name", "Classroom / Room", "Submission Time", "Final Score"]],
+      body: tableData,
+      theme: "striped",
+      headStyles: { fillColor: [0, 66, 83], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [240, 247, 249] },
+      styles: { fontSize: 10, cellPadding: 3 },
+      didParseCell: function (data: any) {
+        if (data.section === 'body' && data.column.index === 4) { 
+          const score = parseFloat(data.cell.raw);
+          if (!isNaN(score)) {
+            if (score >= 75) data.cell.styles.textColor = [22, 163, 74];
+            else if (score >= 50) data.cell.styles.textColor = [217, 119, 6];
+            else data.cell.styles.textColor = [225, 29, 72];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      }
     });
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${report.title.replace(/\s+/g, '_')}_Results.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    doc.save(`Report_${report.title.replace(/\s+/g, "_")}.pdf`);
+  };
+
+  const handleExportExcel = async (report: any) => {
+    const ExcelJS = (await import("exceljs")).default;
+    const { saveAs } = await import("file-saver");
+    
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Exam Report");
+
+    ws.mergeCells('A1:E1');
+    const titleCell = ws.getCell('A1');
+    titleCell.value = "TABGHA ACADEMIC EXAM REPORT";
+    titleCell.font = { name: 'Arial Black', size: 16, bold: true, color: { argb: "FF004253" } };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    ws.getCell('A3').value = "Exam Title:"; ws.getCell('B3').value = report.title;
+    ws.getCell('A4').value = "Subject:"; ws.getCell('B4').value = report.subject?.name;
+    ws.getCell('A5').value = "Term & Level:"; ws.getCell('B5').value = `${report.term} - ${report.level}`;
+    ws.getCell('D3').value = "Total Attempts:"; ws.getCell('E3').value = report.totalAttempts;
+    ws.getCell('D4').value = "Class Average:"; ws.getCell('E4').value = report.avgScore ?? '--';
+    
+    const headerRow = ws.getRow(7);
+    headerRow.values = ["#", "Student Name", "Classroom / Room", "Submission Time", "Final Score"];
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF004253" } };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    ws.columns = [
+      { key: "no", width: 5 },
+      { key: "name", width: 30 },
+      { key: "room", width: 25 },
+      { key: "time", width: 22 },
+      { key: "score", width: 15 }
+    ];
+
+    report.attempts.forEach((att: any, idx: number) => {
+      const row = ws.addRow({
+        no: idx + 1,
+        name: att.student?.name,
+        room: att.student?.classRoom?.name || "N/A",
+        time: new Date(att.endTime).toLocaleString(),
+        score: att.score ?? 0
+      });
+
+      const scoreCell = row.getCell(5);
+      const score = parseFloat(scoreCell.value as string);
+      if (!isNaN(score)) {
+        if (score >= 75) scoreCell.font = { color: { argb: "FF16A34A" }, bold: true };
+        else if (score >= 50) scoreCell.font = { color: { argb: "FFD97706" }, bold: true };
+        else scoreCell.font = { color: { argb: "FFE11D48" }, bold: true };
+      }
+      
+      if (idx % 2 === 0) row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FFF0F7F9" } };
+    });
+
+    const buf = await wb.xlsx.writeBuffer();
+    saveAs(new Blob([buf]), `Report_${report.title.replace(/\s+/g, '_')}.xlsx`);
   };
 
   return (
@@ -618,13 +709,22 @@ export default function TeacherDashboard() {
                       </div>
                       
                       <div className="flex items-center gap-6 mt-4 md:mt-0 shrink-0">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleExportCSV(r); }}
-                          className="hidden md:flex items-center gap-2 px-4 py-3 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 font-bold rounded-xl hover:bg-emerald-100 transition-colors tooltip"
-                          title="Export to Excel (CSV)"
-                        >
-                          <span className="material-symbols-outlined text-lg">download</span>
-                        </button>
+                        <div className="hidden md:flex flex-col gap-2">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleExportExcel(r); }}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 font-bold rounded-xl hover:bg-emerald-100 transition-colors tooltip text-xs w-full justify-center"
+                            title="Export to Excel"
+                          >
+                            <span className="material-symbols-outlined text-sm">table_view</span> Excel
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleExportPDF(r); }}
+                            className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 font-bold rounded-xl hover:bg-rose-100 transition-colors tooltip text-xs w-full justify-center"
+                            title="Export to PDF"
+                          >
+                            <span className="material-symbols-outlined text-sm">picture_as_pdf</span> PDF
+                          </button>
+                        </div>
                         <div className="text-center bg-slate-50 dark:bg-slate-900/50 px-6 py-3 rounded-2xl border border-slate-200 dark:border-slate-700">
                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Attempts</p>
                           <p className="text-2xl font-black text-slate-700 dark:text-slate-300">{r.totalAttempts}</p>
@@ -643,7 +743,10 @@ export default function TeacherDashboard() {
                       <div className="p-8 bg-slate-50/50 dark:bg-slate-900/20 border-t border-slate-200 dark:border-slate-700 animate-in slide-in-from-top-2 duration-300">
                         <div className="flex justify-between items-end mb-6">
                            <h4 className="font-bold text-slate-500 uppercase tracking-widest text-sm">Detailed Attempts</h4>
-                           <button onClick={(e) => handleExportCSV(r)} className="md:hidden flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 font-bold rounded-lg text-sm"><span className="material-symbols-outlined text-sm">download</span> Export CSV</button>
+                           <div className="md:hidden flex gap-2">
+                             <button onClick={(e) => handleExportExcel(r)} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 font-bold rounded-lg text-xs"><span className="material-symbols-outlined text-[14px]">table_view</span> Excel</button>
+                             <button onClick={(e) => handleExportPDF(r)} className="flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-700 font-bold rounded-lg text-xs"><span className="material-symbols-outlined text-[14px]">picture_as_pdf</span> PDF</button>
+                           </div>
                         </div>
 
                         {r.attempts && r.attempts.length > 0 ? (

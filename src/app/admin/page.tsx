@@ -144,6 +144,52 @@ export default function AdminDashboard() {
 
   const filteredUsers = userFilter === "ALL" ? users : users.filter(u => u.role === userFilter);
 
+  // State for Bulk Import
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const downloadCSVTemplate = () => {
+    const csvData = "Name,Username,Password,Role,Level,Grade,ClassName\nJohn Doe,johndoe123,pass123,STUDENT,SMA,10,A\nJane Smith,teacherjane,pass123,TEACHER,,,";
+    const blob = new Blob([csvData], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Tabgha_Bulk_Users_Template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleImportUsers = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!importFile) return showAlert("Error", "Please select a CSV file first.", "danger");
+    setImporting(true);
+    
+    const formData = new FormData();
+    formData.append("file", importFile);
+
+    try {
+      const res = await fetch("/api/admin/users/import", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to import");
+      
+      showAlert("Import Success", `Successfully registered ${data.imported} users. (Skipped: ${data.skipped} duplicates/invalids)`);
+      setShowImportModal(false);
+      setImportFile(null);
+      fetchStats();
+      fetchUsers();
+    } catch (err: any) {
+      showAlert("Import Failed", err.message, "danger");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const NAV_ITEMS: { id: Tab; icon: string; label: string; sublabel?: string }[] = [
     { id: "DASHBOARD", icon: "bar_chart_4_bars", label: "Dashboard", sublabel: "System overview" },
     { id: "USERS", icon: "manage_accounts", label: "User Management", sublabel: "Roles & accounts" },
@@ -410,6 +456,10 @@ export default function AdminDashboard() {
                     <button onClick={() => exportToPDF(users, "tabgha_users")} className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 text-white rounded-lg font-bold text-xs shadow hover:bg-rose-700 transition-colors">
                       <span className="material-symbols-outlined text-sm">picture_as_pdf</span> PDF
                     </button>
+                    <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                    <button onClick={() => setShowImportModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs shadow hover:bg-indigo-700 transition-colors tooltip" title="Mass Register Users">
+                      <span className="material-symbols-outlined text-sm">upload_file</span> Bulk Register
+                    </button>
                   </div>
                 </div>
 
@@ -622,6 +672,55 @@ export default function AdminDashboard() {
                 <span className="material-symbols-outlined text-sm">save</span> Save Changes
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ════════ MODAL: Bulk CSV Import ════════ */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#161b22] rounded-3xl p-8 max-w-lg w-full shadow-2xl relative border border-slate-200 dark:border-slate-800">
+            <button onClick={() => setShowImportModal(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+            <div className="flex items-center gap-4 mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center">
+                <span className="material-symbols-outlined text-2xl">table_chart</span>
+              </div>
+              <div>
+                <h3 className="font-black text-2xl text-slate-900 dark:text-white">Bulk Register (CSV)</h3>
+                <p className="text-sm text-slate-500 font-medium">Mass import students, teachers, or admins.</p>
+              </div>
+            </div>
+
+            <div className="mt-8 space-y-6">
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                <p className="text-sm text-slate-600 dark:text-slate-400 font-bold mb-3">1. Download Template</p>
+                <p className="text-xs text-slate-500 mb-4">Ensure your CSV file exactly matches the column headers provided in our template. Extraneous columns will be ignored.</p>
+                <button onClick={downloadCSVTemplate} className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm">
+                  <span className="material-symbols-outlined text-[18px]">download</span> Tabgha_Template.csv
+                </button>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                <p className="text-sm text-slate-600 dark:text-slate-400 font-bold mb-3">2. Upload Populated File</p>
+                <form onSubmit={handleImportUsers} className="space-y-4">
+                  <input 
+                    type="file" 
+                    accept=".csv"
+                    required
+                    onChange={e => setImportFile(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all dark:file:bg-indigo-900/30 dark:file:text-indigo-400 dark:hover:file:bg-indigo-900/50"
+                  />
+                  <div className="pt-2">
+                    <button disabled={importing || !importFile} type="submit" className="w-full flex items-center justify-center gap-3 py-3.5 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100">
+                      {importing ? <span className="material-symbols-outlined animate-spin">refresh</span> : <span className="material-symbols-outlined text-lg">cloud_upload</span>}
+                      {importing ? "Processing CSV Data..." : "Upload & Register Mass Users"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       )}
