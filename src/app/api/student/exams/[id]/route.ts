@@ -41,7 +41,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         }
       });
     } else if (attempt.endTime) {
-      return NextResponse.json({ error: "Exam already completed" }, { status: 403 });
+      return NextResponse.json({ 
+        error: "Exam already completed",
+        score: attempt.score,
+        exam: {
+          title: exam.title,
+          subject: { name: exam.subject.name }
+        }
+      }, { status: 403 });
     }
 
     // Strip isCorrect from options

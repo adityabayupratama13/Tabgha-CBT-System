@@ -26,6 +26,9 @@ export default function ExamTakingInterface({ params }: { params: Promise<{ id: 
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  
+  const [alreadyCompleted, setAlreadyCompleted] = useState(false);
+  const [completedScore, setCompletedScore] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchExam = async () => {
@@ -34,6 +37,13 @@ export default function ExamTakingInterface({ params }: { params: Promise<{ id: 
         const data = await res.json();
         
         if (!res.ok) {
+          if (res.status === 403 && data.score !== undefined) {
+             setExam(data.exam);
+             setCompletedScore(data.score);
+             setAlreadyCompleted(true);
+             setLoading(false);
+             return;
+          }
           setErrorText(data.error || "Failed to load exam. You may have already completed it.");
           setLoading(false);
           return;
@@ -87,7 +97,9 @@ export default function ExamTakingInterface({ params }: { params: Promise<{ id: 
         body: JSON.stringify({ answers })
       });
       if (res.ok) {
-        showAlert("Success", "Exam submitted successfully!", "alert", () => router.push("/student"));
+        const data = await res.json();
+        setCompletedScore(data.score);
+        setAlreadyCompleted(true);
       } else {
         showAlert("Failed", "Failed to submit exam, please try again.", "danger");
         setSubmitting(false);
@@ -125,6 +137,32 @@ export default function ExamTakingInterface({ params }: { params: Promise<{ id: 
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-surface font-headline font-bold text-2xl text-primary animate-pulse">Loading Academic Session...</div>;
+  
+  if (alreadyCompleted && exam) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-surface p-10 text-center relative overflow-hidden">
+         <div className="absolute top-0 right-0 p-32 bg-primary/10 blur-[100px] w-full h-full rounded-full z-0 pointer-events-none"></div>
+         <div className="relative z-10 max-w-lg w-full bg-white dark:bg-slate-900 shadow-2xl rounded-[2.5rem] p-10 border border-outline-variant/30 flex flex-col items-center">
+            <span className="material-symbols-outlined text-[80px] mb-6 drop-shadow-lg text-primary">verified</span>
+            <div className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-4 py-2 rounded-xl mb-4">Exam Completed</div>
+            <h2 className="font-headline font-black text-3xl mb-2 text-on-surface">{exam.title}</h2>
+            <p className="text-on-surface-variant font-bold mb-8">{exam.subject?.name}</p>
+            
+            <div className="bg-slate-50 dark:bg-slate-950 w-full p-8 rounded-3xl border border-outline-variant/50 mb-8">
+               <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Final Score</p>
+               <div className={`text-7xl font-black ${completedScore && completedScore >= 75 ? 'text-green-500' : 'text-amber-500'}`}>
+                 {completedScore !== null ? completedScore : "?"}
+               </div>
+            </div>
+
+            <button onClick={() => router.push("/student")} className="bg-primary text-on-primary px-10 py-4 font-black w-full rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-lg flex items-center justify-center gap-3">
+              <span className="material-symbols-outlined">home</span> Back to Dashboard
+            </button>
+         </div>
+      </div>
+    );
+  }
+
   if (errorText) return (
      <div className="min-h-screen flex flex-col items-center justify-center bg-surface p-10 text-center">
        <span className="material-symbols-outlined text-6xl text-error mb-4">gpp_bad</span>
